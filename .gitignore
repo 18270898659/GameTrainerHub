@@ -1,0 +1,19 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.db
+*.log
+
+# Frontend
+node_modules/
+dist/
+.vite/
+
+# Temporary
+temp/
+logs/
+data/
+downloads/
