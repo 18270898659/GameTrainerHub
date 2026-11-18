@@ -33,8 +33,10 @@ func TestLauncherSecurityCardAndLaunch(t *testing.T) {
 	game := &model.Game{Slug: "elden-ring", NameEN: "ELDEN RING", NameCN: "艾尔登法环"}
 	_ = gameRepo.Create(ctx, game)
 
-	// 创建可执行测试文件 (在 Windows 下可用一个轻量 batch 或已存在的 powershell.exe)
-	mockExe := filepath.Join(tempDir, "EldenRing_Trainer.exe")
+	// 创建带特殊字符和单引号的文件路径测试
+	specialDir := filepath.Join(tempDir, "Assassin's Creed (2024)")
+	_ = os.MkdirAll(specialDir, 0755)
+	mockExe := filepath.Join(specialDir, "EldenRing's Trainer.exe")
 	_ = os.WriteFile(mockExe, []byte("MZ_MOCK_TRAINER_BINARY"), 0755)
 
 	lt := &model.LocalTrainer{
@@ -57,8 +59,8 @@ func TestLauncherSecurityCardAndLaunch(t *testing.T) {
 	if card.GameName != "艾尔登法环" {
 		t.Errorf("expected '艾尔登法环', got '%s'", card.GameName)
 	}
-	if card.FileName != "EldenRing_Trainer.exe" {
-		t.Errorf("expected 'EldenRing_Trainer.exe', got '%s'", card.FileName)
+	if card.FileName != "EldenRing's Trainer.exe" {
+		t.Errorf("expected \"EldenRing's Trainer.exe\", got '%s'", card.FileName)
 	}
 	if !strings.Contains(card.SecurityNotice, "安全警示") {
 		t.Errorf("expected security notice to contain '安全警示', got '%s'", card.SecurityNotice)
@@ -83,5 +85,12 @@ func TestLauncherSecurityCardAndLaunch(t *testing.T) {
 	if updatedLT.RunCount != 1 || updatedLT.LastRunAt == nil {
 		t.Errorf("expected run count = 1 and valid last run at, got %d", updatedLT.RunCount)
 	}
-}
 
+	// 4. 验证不存在的文件获取安全卡片失败
+	ltGhost := &model.LocalTrainer{GameID: game.ID, FilePath: filepath.Join(tempDir, "ghost.exe")}
+	_ = localRepo.Create(ctx, ltGhost)
+	_, ghostErr := launcher.GetSecurityCard(ctx, ltGhost.ID)
+	if ghostErr == nil {
+		t.Fatal("expected error for non-existent file, got nil")
+	}
+}

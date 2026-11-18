@@ -61,9 +61,9 @@ func (r *DownloadRepository) GetTaskByID(ctx context.Context, id int64) (*model.
 		       COALESCE(g.name_cn, g.name_en, '') AS game_name,
 		       COALESCE(tv.version_name, '') AS version_name
 		FROM download_tasks dt
-		JOIN trainer_versions tv ON dt.version_id = tv.id
-		JOIN trainers tr ON tv.trainer_id = tr.id
-		JOIN games g ON tr.game_id = g.id
+		LEFT JOIN trainer_versions tv ON dt.version_id = tv.id
+		LEFT JOIN trainers tr ON tv.trainer_id = tr.id
+		LEFT JOIN games g ON tr.game_id = g.id
 		WHERE dt.id = ?
 	`, id)
 
@@ -86,9 +86,9 @@ func (r *DownloadRepository) ListTasks(ctx context.Context, status string) ([]*m
 		       COALESCE(g.name_cn, g.name_en, '') AS game_name,
 		       COALESCE(tv.version_name, '') AS version_name
 		FROM download_tasks dt
-		JOIN trainer_versions tv ON dt.version_id = tv.id
-		JOIN trainers tr ON tv.trainer_id = tr.id
-		JOIN games g ON tr.game_id = g.id
+		LEFT JOIN trainer_versions tv ON dt.version_id = tv.id
+		LEFT JOIN trainers tr ON tv.trainer_id = tr.id
+		LEFT JOIN games g ON tr.game_id = g.id
 	`
 	var args []any
 	if status != "" {

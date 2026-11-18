@@ -92,6 +92,9 @@ func (w *Worker) Execute(ctx context.Context) (*DownloadResult, error) {
 
 	resp, err := w.client.Do(req)
 	if err != nil {
+		if ctx.Err() != nil {
+			w.task.Status = model.DownloadStatusPaused
+		}
 		return nil, err
 	}
 	defer resp.Body.Close()
@@ -234,6 +237,9 @@ func (w *Worker) probeResource(ctx context.Context) (totalSize int64, supportsRa
 
 	resp, err := w.client.Do(req)
 	if err != nil {
+		if ctx.Err() != nil {
+			w.task.Status = model.DownloadStatusPaused
+		}
 		return 0, false, err
 	}
 	defer resp.Body.Close()
@@ -266,6 +272,9 @@ func (w *Worker) probeWithRange(ctx context.Context) (int64, bool, error) {
 
 	resp, err := w.client.Do(req)
 	if err != nil {
+		if ctx.Err() != nil {
+			w.task.Status = model.DownloadStatusPaused
+		}
 		return 0, false, err
 	}
 	defer resp.Body.Close()

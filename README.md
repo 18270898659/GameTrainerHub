@@ -52,3 +52,4 @@ cd ..
 # 构建独立客户端
 go build -ldflags "-s -w" -o GameTrainerHub.exe main.go
 ```
+

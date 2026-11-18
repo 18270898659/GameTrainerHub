@@ -173,18 +173,30 @@ func (t *Translator) ExpandQueryTerms(rawQuery string) []string {
 			add(cn)
 		}
 
-		// 检查是否可能是拼音首字母匹配（如 "sbpk", "aedfh"）
+		// 检查是否可能是拼音全拼或首字母匹配（如 "sbpk", "laotouhuan", "heihou"）
 		lower := strings.ToLower(clean)
 		for _, item := range t.items {
+			// 匹配主中文名的全拼与声母
 			initCN := t.ToPinyinInitials(item.NameCN)
 			pyCN := t.ToPinyin(item.NameCN)
 			if initCN == lower || strings.HasPrefix(initCN, lower) || pyCN == lower || strings.HasPrefix(pyCN, lower) {
 				add(item.NameEN)
 				add(item.NameCN)
 			}
+
+			// 匹配别名（如 "老头环" -> "laotouhuan", "lth"）
+			for _, alias := range item.Aliases {
+				initAlias := t.ToPinyinInitials(alias)
+				pyAlias := t.ToPinyin(alias)
+				if initAlias == lower || strings.HasPrefix(initAlias, lower) || pyAlias == lower || strings.HasPrefix(pyAlias, lower) {
+					add(item.NameEN)
+					add(item.NameCN)
+					add(alias)
+					break
+				}
+			}
 		}
 	}
 
 	return terms
 }
-

@@ -4,8 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 )
 
@@ -112,25 +114,135 @@ func TestTransactionCommit(t *testing.T) {
 
 	ctx := context.Background()
 
-	// 正常提交事务
 	err = db.WithTx(ctx, func(tx *sql.Tx) error {
 		_, execErr := tx.ExecContext(ctx, `
-			INSERT INTO app_settings (key, value) VALUES ('tx_success', 'val_committed')
+			INSERT INTO app_settings (key, value) VALUES ('tx_commit', 'success')
 		`)
 		return execErr
 	})
 
 	if err != nil {
-		t.Fatalf("transaction commit failed: %v", err)
+		t.Fatalf("unexpected tx error: %v", err)
 	}
 
 	var val string
-	err = db.QueryRowContext(ctx, "SELECT value FROM app_settings WHERE key = 'tx_success'").Scan(&val)
+	err = db.QueryRowContext(ctx, "SELECT value FROM app_settings WHERE key = 'tx_commit'").Scan(&val)
 	if err != nil {
-		t.Fatalf("failed to query committed row: %v", err)
+		t.Fatalf("failed to query committed value: %v", err)
 	}
-	if val != "val_committed" {
-		t.Errorf("expected 'val_committed', got '%s'", val)
+	if val != "success" {
+		t.Errorf("expected 'success', got '%s'", val)
 	}
 }
 
+func TestIntegrityCheckAndBackup(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gth_backup_test_*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	dbPath := filepath.Join(tempDir, "primary.db")
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open primary database: %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+
+	// 1. 完整性检查
+	if err := db.IntegrityCheck(ctx); err != nil {
+		t.Fatalf("initial integrity check failed: %v", err)
+	}
+
+	// 写入一些数据
+	_, _ = db.ExecContext(ctx, "INSERT INTO app_settings (key, value) VALUES ('backup_key', 'backup_val');")
+
+	// 2. 在线热备份
+	backupPath := filepath.Join(tempDir, "backup", "snapshot.db")
+	if err := db.Backup(ctx, backupPath); err != nil {
+		t.Fatalf("database backup failed: %v", err)
+	}
+
+	// 3. 验证从备份库中可以读取到数据
+	backupDB, err := Open(backupPath)
+	if err != nil {
+		t.Fatalf("failed to open backup database: %v", err)
+	}
+	defer backupDB.Close()
+
+	var backupVal string
+	err = backupDB.QueryRowContext(ctx, "SELECT value FROM app_settings WHERE key = 'backup_key'").Scan(&backupVal)
+	if err != nil {
+		t.Fatalf("failed to read from backup: %v", err)
+	}
+	if backupVal != "backup_val" {
+		t.Errorf("expected 'backup_val', got '%s'", backupVal)
+	}
+}
+
+func TestDatabaseConcurrentStress(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gth_stress_test_*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	dbPath := filepath.Join(tempDir, "stress.db")
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open stress database: %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	concurrency := 20
+	iterations := 10
+
+	var wg sync.WaitGroup
+	errCh := make(chan error, concurrency*iterations)
+
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+		workerID := i
+		go func() {
+			defer wg.Done()
+			for j := 0; j < iterations; j++ {
+				key := fmt.Sprintf("k_%d_%d", workerID, j)
+				val := fmt.Sprintf("v_%d_%d", workerID, j)
+
+				// 并发写入
+				_, writeErr := db.ExecContext(ctx, "INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)", key, val)
+				if writeErr != nil {
+					errCh <- writeErr
+					return
+				}
+
+				// 并发读取
+				var readVal string
+				readErr := db.QueryRowContext(ctx, "SELECT value FROM app_settings WHERE key = ?", key).Scan(&readVal)
+				if readErr != nil {
+					errCh <- readErr
+					return
+				}
+				if readVal != val {
+					errCh <- fmt.Errorf("data mismatch: expected %s, got %s", val, readVal)
+					return
+				}
+			}
+		}()
+	}
+
+	wg.Wait()
+	close(errCh)
+
+	for e := range errCh {
+		t.Fatalf("concurrent stress test encountered error: %v", e)
+	}
+
+	// 最终完整性校验
+	if err := db.IntegrityCheck(ctx); err != nil {
+		t.Fatalf("post-stress integrity check failed: %v", err)
+	}
+}

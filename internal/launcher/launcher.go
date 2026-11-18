@@ -14,6 +14,8 @@ import (
 	"GameTrainerHub/internal/database/repository"
 	"GameTrainerHub/internal/logger"
 	"GameTrainerHub/internal/model"
+
+	"golang.org/x/sys/windows"
 )
 
 // SecurityCardInfo 启动前安全确认卡片信息
@@ -111,22 +113,32 @@ func (l *Launcher) LaunchExecutable(ctx context.Context, localTrainerID int64, r
 
 	workDir := filepath.Dir(filePath)
 
-	var cmd *exec.Cmd
 	if runAsAdmin {
-		// 显式以管理员权限请求 Windows UAC 提权
-		logger.Info("Launching trainer with elevated administrator privilege", "path", filePath)
-		cmd = exec.Command("powershell.exe", "-NoProfile", "-WindowStyle", "Hidden", "-Command",
-			fmt.Sprintf("Start-Process -FilePath '%s' -WorkingDirectory '%s' -Verb RunAs", filePath, workDir))
+		// 显式以管理员权限请求 Windows UAC 提权，采用原生 ShellExecute 系统调用，杜绝命令注入与脚本逃逸
+		logger.Info("Launching trainer with elevated administrator privilege via ShellExecute", "path", filePath)
+		verbPtr, err := windows.UTF16PtrFromString("runas")
+		if err != nil {
+			return fmt.Errorf("invalid verb: %w", err)
+		}
+		filePtr, err := windows.UTF16PtrFromString(filePath)
+		if err != nil {
+			return fmt.Errorf("invalid file path: %w", err)
+		}
+		dirPtr, err := windows.UTF16PtrFromString(workDir)
+		if err != nil {
+			return fmt.Errorf("invalid working directory: %w", err)
+		}
+		if err := windows.ShellExecute(0, verbPtr, filePtr, nil, dirPtr, windows.SW_SHOWNORMAL); err != nil {
+			return fmt.Errorf("failed to launch elevated trainer: %w", err)
+		}
 	} else {
-		// 默认普通用户权限执行，目录隔离
+		// 默认普通用户权限执行，工作目录隔离，直接调用可执行文件路径
 		logger.Info("Launching trainer with standard privilege", "path", filePath)
-		cmd = exec.Command(filePath)
+		cmd := exec.Command(filePath)
 		cmd.Dir = workDir
-	}
-
-	// 异步非阻塞执行
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("failed to start trainer process: %w", err)
+		if err := cmd.Start(); err != nil {
+			return fmt.Errorf("failed to start trainer process: %w", err)
+		}
 	}
 
 	// 记录启动次数与最后启动时间
@@ -158,4 +170,3 @@ func computeFileSHA256(path string) (string, error) {
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
-

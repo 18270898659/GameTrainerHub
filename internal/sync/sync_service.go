@@ -121,10 +121,22 @@ func (s *SyncService) SyncCatalog(ctx context.Context) (*model.SyncRecord, error
 		}
 
 		if gameID > 0 {
-			// 维护 FTS 索引
-			py := s.translator.ToPinyin(gameNameCN)
-			initials := s.translator.ToPinyinInitials(gameNameCN)
-			_ = s.ftsRepo.IndexGame(ctx, gameID, gameNameEN, gameNameCN, "", py, initials)
+			// 维护 FTS 索引 (包含别名与拼音全拼、声母)
+			aliases := s.translator.TranslateEnglishToChinese(gameNameEN)
+			aliasStr := strings.Join(aliases, " ")
+			var pinyins []string
+			var initialsList []string
+			if gameNameCN != "" {
+				pinyins = append(pinyins, s.translator.ToPinyin(gameNameCN))
+				initialsList = append(initialsList, s.translator.ToPinyinInitials(gameNameCN))
+			}
+			for _, al := range aliases {
+				pinyins = append(pinyins, s.translator.ToPinyin(al))
+				initialsList = append(initialsList, s.translator.ToPinyinInitials(al))
+			}
+			py := strings.Join(pinyins, " ")
+			initials := strings.Join(initialsList, " ")
+			_ = s.ftsRepo.IndexGame(ctx, gameID, gameNameEN, gameNameCN, aliasStr, py, initials)
 
 			// 登记修改器主记录
 			tr := &model.Trainer{
