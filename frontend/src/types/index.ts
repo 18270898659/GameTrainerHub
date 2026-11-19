@@ -8,6 +8,7 @@ export interface Game {
   install_path: string
   aliases?: string[]
   is_favorite: boolean
+  detail_url?: string
   created_at: string
   updated_at: string
 }
@@ -20,6 +21,7 @@ export interface Trainer {
   title_en: string
   title_cn: string
   detail_url: string
+  cover_url?: string
   author: string
   latest_version: string
   published_at: string
@@ -72,6 +74,7 @@ export interface DownloadTask {
   id: number
   version_id: number
   game_name: string
+  trainer_name?: string
   version_name: string
   file_name: string
   save_path: string
@@ -92,11 +95,14 @@ export interface DownloadHistory {
   trainer_id: number
   version_id: number
   game_name: string
+  trainer_name?: string
+  version_name?: string
   file_name: string
   file_size: number
   sha256: string
   save_path: string
   completed_at: string
+  file_exists?: boolean
 }
 
 export interface LocalTrainer {
@@ -124,6 +130,8 @@ export interface LocalTrainerDetail {
 
 export interface SecurityCardInfo {
   trainer_id: number
+  game_id?: number
+  version_id?: number
   game_name: string
   file_name: string
   file_path: string
@@ -131,6 +139,7 @@ export interface SecurityCardInfo {
   sha256: string
   source_name: string
   is_custom: boolean
+  file_exists?: boolean
   requires_admin: boolean
   security_notice: string
 }

@@ -40,6 +40,7 @@ type Game struct {
 	InstallPath string      `json:"install_path"`
 	Aliases     []string    `json:"aliases,omitempty"`
 	IsFavorite  bool        `json:"is_favorite"`
+	DetailURL   string      `json:"detail_url,omitempty"`
 	Trainers    []*Trainer  `json:"trainers,omitempty"`
 	CreatedAt   time.Time   `json:"created_at"`
 	UpdatedAt   time.Time   `json:"updated_at"`
@@ -62,6 +63,7 @@ type Trainer struct {
 	ExternalID    string            `json:"external_id"`
 	TitleEN       string            `json:"title_en"`
 	TitleCN       string            `json:"title_cn"`
+	CoverURL      string            `json:"cover_url,omitempty"`
 	DetailURL     string            `json:"detail_url"`
 	Author        string            `json:"author"`
 	LatestVersion string            `json:"latest_version"`
@@ -93,6 +95,7 @@ type DownloadTask struct {
 	ID               int64     `json:"id"`
 	VersionID        int64     `json:"version_id"`
 	GameName         string    `json:"game_name"`
+	TrainerName      string    `json:"trainer_name"`
 	VersionName      string    `json:"version_name"`
 	FileName         string    `json:"file_name"`
 	SavePath         string    `json:"save_path"`
@@ -114,10 +117,13 @@ type DownloadHistory struct {
 	TrainerID   int64     `json:"trainer_id"`
 	VersionID   int64     `json:"version_id"`
 	GameName    string    `json:"game_name"`
+	TrainerName string    `json:"trainer_name"`
+	VersionName string    `json:"version_name"`
 	FileName    string    `json:"file_name"`
 	FileSize    int64     `json:"file_size"`
 	SHA256      string    `json:"sha256"`
 	SavePath    string    `json:"save_path"`
+	FileExists  bool      `json:"file_exists"`
 	CompletedAt time.Time `json:"completed_at"`
 }
 

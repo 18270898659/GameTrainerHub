@@ -91,19 +91,33 @@ func (r *GameRepository) UpsertBySlug(ctx context.Context, g *model.Game) (*mode
 	return existing, nil
 }
 
+// GetOrCreateBySlug 保证通过 slug 获取或创建游戏并返回实体
+func (r *GameRepository) GetOrCreateBySlug(ctx context.Context, slug, nameEN, nameCN, coverURL string) (*model.Game, error) {
+	if slug == "" && nameEN != "" {
+		slug = nameEN
+	}
+	return r.UpsertBySlug(ctx, &model.Game{
+		Slug:     slug,
+		NameEN:   nameEN,
+		NameCN:   nameCN,
+		CoverURL: coverURL,
+	})
+}
+
 // GetByID 通过 ID 查询游戏
 func (r *GameRepository) GetByID(ctx context.Context, id int64) (*model.Game, error) {
 	row := r.db.QueryRowContext(ctx, `
 		SELECT g.id, g.slug, g.name_en, g.name_cn, g.cover_url, g.steam_app_id, g.install_path, 
 		       g.created_at, g.updated_at,
-		       EXISTS(SELECT 1 FROM favorites WHERE game_id = g.id) AS is_fav
+		       EXISTS(SELECT 1 FROM favorites WHERE game_id = g.id) AS is_fav,
+		       COALESCE((SELECT detail_url FROM trainers WHERE game_id = g.id AND detail_url != '' ORDER BY id DESC LIMIT 1), '') AS detail_url
 		FROM games g
 		WHERE g.id = ?
 	`, id)
 
 	var g model.Game
 	var isFav int
-	err := row.Scan(&g.ID, &g.Slug, &g.NameEN, &g.NameCN, &g.CoverURL, &g.SteamAppID, &g.InstallPath, &g.CreatedAt, &g.UpdatedAt, &isFav)
+	err := row.Scan(&g.ID, &g.Slug, &g.NameEN, &g.NameCN, &g.CoverURL, &g.SteamAppID, &g.InstallPath, &g.CreatedAt, &g.UpdatedAt, &isFav, &g.DetailURL)
 	if err != nil {
 		return nil, err
 	}
@@ -122,14 +136,15 @@ func (r *GameRepository) GetBySlug(ctx context.Context, slug string) (*model.Gam
 	row := r.db.QueryRowContext(ctx, `
 		SELECT g.id, g.slug, g.name_en, g.name_cn, g.cover_url, g.steam_app_id, g.install_path, 
 		       g.created_at, g.updated_at,
-		       EXISTS(SELECT 1 FROM favorites WHERE game_id = g.id) AS is_fav
+		       EXISTS(SELECT 1 FROM favorites WHERE game_id = g.id) AS is_fav,
+		       COALESCE((SELECT detail_url FROM trainers WHERE game_id = g.id AND detail_url != '' ORDER BY id DESC LIMIT 1), '') AS detail_url
 		FROM games g
 		WHERE g.slug = ?
 	`, slug)
 
 	var g model.Game
 	var isFav int
-	err := row.Scan(&g.ID, &g.Slug, &g.NameEN, &g.NameCN, &g.CoverURL, &g.SteamAppID, &g.InstallPath, &g.CreatedAt, &g.UpdatedAt, &isFav)
+	err := row.Scan(&g.ID, &g.Slug, &g.NameEN, &g.NameCN, &g.CoverURL, &g.SteamAppID, &g.InstallPath, &g.CreatedAt, &g.UpdatedAt, &isFav, &g.DetailURL)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +162,8 @@ func (r *GameRepository) List(ctx context.Context, offset, limit int) ([]*model.
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT g.id, g.slug, g.name_en, g.name_cn, g.cover_url, g.steam_app_id, g.install_path, 
 		       g.created_at, g.updated_at,
-		       EXISTS(SELECT 1 FROM favorites WHERE game_id = g.id) AS is_fav
+		       EXISTS(SELECT 1 FROM favorites WHERE game_id = g.id) AS is_fav,
+		       COALESCE((SELECT detail_url FROM trainers WHERE game_id = g.id AND detail_url != '' ORDER BY id DESC LIMIT 1), '') AS detail_url
 		FROM games g
 		ORDER BY g.updated_at DESC
 		LIMIT ? OFFSET ?
@@ -161,7 +177,7 @@ func (r *GameRepository) List(ctx context.Context, offset, limit int) ([]*model.
 	for rows.Next() {
 		var g model.Game
 		var isFav int
-		if err := rows.Scan(&g.ID, &g.Slug, &g.NameEN, &g.NameCN, &g.CoverURL, &g.SteamAppID, &g.InstallPath, &g.CreatedAt, &g.UpdatedAt, &isFav); err != nil {
+		if err := rows.Scan(&g.ID, &g.Slug, &g.NameEN, &g.NameCN, &g.CoverURL, &g.SteamAppID, &g.InstallPath, &g.CreatedAt, &g.UpdatedAt, &isFav, &g.DetailURL); err != nil {
 			return nil, err
 		}
 		g.IsFavorite = (isFav == 1)
@@ -230,7 +246,8 @@ func (r *GameRepository) SetFavorite(ctx context.Context, gameID int64, isFav bo
 func (r *GameRepository) ListFavorites(ctx context.Context) ([]*model.Game, error) {
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT g.id, g.slug, g.name_en, g.name_cn, g.cover_url, g.steam_app_id, g.install_path, 
-		       g.created_at, g.updated_at, 1 AS is_fav
+		       g.created_at, g.updated_at, 1 AS is_fav,
+		       COALESCE((SELECT detail_url FROM trainers WHERE game_id = g.id AND detail_url != '' ORDER BY id DESC LIMIT 1), '') AS detail_url
 		FROM games g
 		JOIN favorites f ON g.id = f.game_id
 		ORDER BY f.created_at DESC
@@ -244,7 +261,7 @@ func (r *GameRepository) ListFavorites(ctx context.Context) ([]*model.Game, erro
 	for rows.Next() {
 		var g model.Game
 		var isFav int
-		if err := rows.Scan(&g.ID, &g.Slug, &g.NameEN, &g.NameCN, &g.CoverURL, &g.SteamAppID, &g.InstallPath, &g.CreatedAt, &g.UpdatedAt, &isFav); err != nil {
+		if err := rows.Scan(&g.ID, &g.Slug, &g.NameEN, &g.NameCN, &g.CoverURL, &g.SteamAppID, &g.InstallPath, &g.CreatedAt, &g.UpdatedAt, &isFav, &g.DetailURL); err != nil {
 			return nil, err
 		}
 		g.IsFavorite = true
@@ -271,7 +288,8 @@ func (r *GameRepository) ListVisited(ctx context.Context, limit int) ([]*model.G
 	rows, err := r.db.QueryContext(ctx, `
 		SELECT g.id, g.slug, g.name_en, g.name_cn, g.cover_url, g.steam_app_id, g.install_path, 
 		       g.created_at, g.updated_at,
-		       EXISTS(SELECT 1 FROM favorites WHERE game_id = g.id) AS is_fav
+		       EXISTS(SELECT 1 FROM favorites WHERE game_id = g.id) AS is_fav,
+		       COALESCE((SELECT detail_url FROM trainers WHERE game_id = g.id AND detail_url != '' ORDER BY id DESC LIMIT 1), '') AS detail_url
 		FROM games g
 		JOIN visited_games vg ON g.id = vg.game_id
 		ORDER BY vg.visited_at DESC
@@ -286,7 +304,7 @@ func (r *GameRepository) ListVisited(ctx context.Context, limit int) ([]*model.G
 	for rows.Next() {
 		var g model.Game
 		var isFav int
-		if err := rows.Scan(&g.ID, &g.Slug, &g.NameEN, &g.NameCN, &g.CoverURL, &g.SteamAppID, &g.InstallPath, &g.CreatedAt, &g.UpdatedAt, &isFav); err != nil {
+		if err := rows.Scan(&g.ID, &g.Slug, &g.NameEN, &g.NameCN, &g.CoverURL, &g.SteamAppID, &g.InstallPath, &g.CreatedAt, &g.UpdatedAt, &isFav, &g.DetailURL); err != nil {
 			return nil, err
 		}
 		g.IsFavorite = (isFav == 1)

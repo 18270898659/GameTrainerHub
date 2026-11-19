@@ -64,6 +64,9 @@
         </div>
       </main>
     </div>
+
+    <!-- 全局游戏修改器详情与版本下载抽屉 -->
+    <GameDetailDrawer />
   </el-config-provider>
 </template>
 
@@ -71,6 +74,7 @@
 import { computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { House, Search, Download, Collection, Setting } from '@element-plus/icons-vue'
+import GameDetailDrawer from './components/GameDetailDrawer.vue'
 import { useAppStore } from './stores/appStore'
 import { api } from './api/wails'
 import { t, currentElementLocale, setLanguage, type SupportedLanguage } from './i18n'
@@ -91,6 +95,7 @@ const pageTitle = computed(() => {
 })
 
 let unregisterEvents: (() => void) | undefined
+let unregisterComplete: (() => void) | undefined
 let unregisterNavigate: (() => void) | undefined
 
 onMounted(async () => {
@@ -106,6 +111,12 @@ onMounted(async () => {
     store.handleProgressUpdate(task)
   })
 
+  unregisterComplete = api.onDownloadCompleted((task) => {
+    store.handleProgressUpdate(task)
+    store.refreshLocalTrainers()
+    store.refreshDownloads()
+  })
+
   // 注册快捷键导航事件 (如 Ctrl+J 直达下载管理)
   unregisterNavigate = api.onNavigate((targetRoute) => {
     router.push(targetRoute)
@@ -115,6 +126,9 @@ onMounted(async () => {
 onUnmounted(() => {
   if (unregisterEvents) {
     unregisterEvents()
+  }
+  if (unregisterComplete) {
+    unregisterComplete()
   }
   if (unregisterNavigate) {
     unregisterNavigate()

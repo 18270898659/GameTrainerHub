@@ -14,7 +14,11 @@ export function CheckForUpdates():Promise<model.UpdateCheckResult>;
 
 export function CheckHotkeyConflict(arg1:string):Promise<boolean>;
 
+export function ClearDownloadHistory():Promise<void>;
+
 export function ClearSearchHistory():Promise<void>;
+
+export function DeleteDownloadHistory(arg1:number):Promise<void>;
 
 export function DeleteLocalTrainer(arg1:number,arg2:boolean):Promise<void>;
 
@@ -27,6 +31,8 @@ export function ExportDiagnostics():Promise<string>;
 export function GetConfig():Promise<config.AppConfig>;
 
 export function GetContext():Promise<context.Context>;
+
+export function GetGameDetail(arg1:number):Promise<model.Trainer>;
 
 export function GetLatestTrainers(arg1:number):Promise<Array<model.SearchResult>>;
 
@@ -70,6 +76,8 @@ export function Quit():Promise<void>;
 
 export function RecordGameVisit(arg1:number):Promise<void>;
 
+export function RedownloadLocalTrainer(arg1:number):Promise<model.DownloadTask>;
+
 export function RelocateTrainer(arg1:number,arg2:string):Promise<void>;
 
 export function RemoveSearchHistory(arg1:string):Promise<void>;
@@ -99,6 +107,8 @@ export function StartDownload(arg1:number):Promise<model.DownloadTask>;
 export function StopTrainer(arg1:number):Promise<void>;
 
 export function ToggleFavorite(arg1:number):Promise<boolean>;
+
+export function ToggleFavoriteBySlug(arg1:string,arg2:string,arg3:string,arg4:string):Promise<boolean>;
 
 export function TriggerSync():Promise<model.SyncRecord>;
 

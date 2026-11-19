@@ -7,7 +7,8 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src')
-    }
+    },
+    extensions: ['.ts', '.vue', '.tsx', '.mjs', '.js', '.jsx', '.json']
   },
   server: {
     port: 34115,

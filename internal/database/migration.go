@@ -201,6 +201,18 @@ CREATE TABLE IF NOT EXISTS visited_games (
 CREATE INDEX IF NOT EXISTS idx_visited_games_time ON visited_games(visited_at DESC);
 `,
 	},
+	{
+		Version: 3,
+		Name:    "003_download_task_metadata",
+		SQL: `
+-- 给 download_tasks 与 download_history 补充元数据字段，避免跨表关联丢失或页面显示为组件名称
+ALTER TABLE download_tasks ADD COLUMN game_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE download_tasks ADD COLUMN trainer_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE download_tasks ADD COLUMN version_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE download_history ADD COLUMN trainer_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE download_history ADD COLUMN version_name TEXT NOT NULL DEFAULT '';
+`,
+	},
 }
 
 // Migrate 执行数据库版本迁移

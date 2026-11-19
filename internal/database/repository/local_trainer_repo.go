@@ -38,6 +38,55 @@ func (r *LocalTrainerRepository) Create(ctx context.Context, lt *model.LocalTrai
 	return nil
 }
 
+// Upsert 登记或更新本地修改器（基于 file_path 冲突处理）
+func (r *LocalTrainerRepository) Upsert(ctx context.Context, lt *model.LocalTrainer) error {
+	now := time.Now()
+	res, err := r.db.ExecContext(ctx, `
+		INSERT INTO local_trainers (game_id, version_id, file_path, file_size, sha256, source_name, is_custom, run_count, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)
+		ON CONFLICT(file_path) DO UPDATE SET
+			game_id = CASE WHEN excluded.game_id > 0 THEN excluded.game_id ELSE local_trainers.game_id END,
+			version_id = CASE WHEN excluded.version_id IS NOT NULL THEN excluded.version_id ELSE local_trainers.version_id END,
+			file_size = excluded.file_size,
+			sha256 = excluded.sha256,
+			source_name = excluded.source_name
+	`, lt.GameID, lt.VersionID, lt.FilePath, lt.FileSize, lt.SHA256, lt.SourceName, lt.IsCustom, now)
+	if err != nil {
+		return fmt.Errorf("failed to upsert local trainer: %w", err)
+	}
+
+	id, err := res.LastInsertId()
+	if err == nil && id > 0 {
+		lt.ID = id
+	} else {
+		if existing, qErr := r.GetByFilePath(ctx, lt.FilePath); qErr == nil && existing != nil {
+			lt.ID = existing.ID
+		}
+	}
+	lt.CreatedAt = now
+	return nil
+}
+
+// GetByID 通过 ID 查询本地修改器
+func (r *LocalTrainerRepository) GetByID(ctx context.Context, id int64) (*model.LocalTrainer, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT id, game_id, version_id, file_path, file_size, sha256, source_name, is_custom, last_run_at, run_count, created_at
+		FROM local_trainers
+		WHERE id = ?
+	`, id)
+
+	var lt model.LocalTrainer
+	var lastRun sql.NullTime
+	err := row.Scan(&lt.ID, &lt.GameID, &lt.VersionID, &lt.FilePath, &lt.FileSize, &lt.SHA256, &lt.SourceName, &lt.IsCustom, &lastRun, &lt.RunCount, &lt.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	if lastRun.Valid {
+		lt.LastRunAt = &lastRun.Time
+	}
+	return &lt, nil
+}
+
 // GetByFilePath 通过路径查询本地修改器
 func (r *LocalTrainerRepository) GetByFilePath(ctx context.Context, filePath string) (*model.LocalTrainer, error) {
 	row := r.db.QueryRowContext(ctx, `
@@ -45,6 +94,27 @@ func (r *LocalTrainerRepository) GetByFilePath(ctx context.Context, filePath str
 		FROM local_trainers
 		WHERE file_path = ?
 	`, filePath)
+
+	var lt model.LocalTrainer
+	var lastRun sql.NullTime
+	err := row.Scan(&lt.ID, &lt.GameID, &lt.VersionID, &lt.FilePath, &lt.FileSize, &lt.SHA256, &lt.SourceName, &lt.IsCustom, &lastRun, &lt.RunCount, &lt.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+	if lastRun.Valid {
+		lt.LastRunAt = &lastRun.Time
+	}
+	return &lt, nil
+}
+
+// GetByVersionID 根据版本 ID 查询本地修改器
+func (r *LocalTrainerRepository) GetByVersionID(ctx context.Context, versionID int64) (*model.LocalTrainer, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT id, game_id, version_id, file_path, file_size, sha256, source_name, is_custom, last_run_at, run_count, created_at
+		FROM local_trainers
+		WHERE version_id = ?
+		ORDER BY id DESC LIMIT 1
+	`, versionID)
 
 	var lt model.LocalTrainer
 	var lastRun sql.NullTime

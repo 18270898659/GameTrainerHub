@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"GameTrainerHub/internal/config"
 	"GameTrainerHub/internal/logger"
@@ -486,4 +487,284 @@ func TestPhase2IPCMethods(t *testing.T) {
 	_ = app.PauseAllDownloads()
 	_ = app.ResumeAllDownloads()
 }
+
+func TestDefectFixesSuite(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gth_defect_test_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	cfg := &config.AppConfig{
+		BaseDir:                tempDir,
+		DataDir:                filepath.Join(tempDir, "data"),
+		DownloadDir:            filepath.Join(tempDir, "downloads"),
+		LogDir:                 filepath.Join(tempDir, "logs"),
+		MaxConcurrentDownloads: 2,
+		Theme:                  "dark",
+		Language:               "zh-CN",
+	}
+
+	app, err := NewApp(cfg)
+	if err != nil {
+		t.Fatalf("NewApp failed: %v", err)
+	}
+	defer app.Shutdown(context.Background())
+
+	ctx := context.Background()
+
+	// 1. 多游戏收藏测试 (Multi-game favorites)
+	fav1, err := app.ToggleFavoriteBySlug("black-myth-wukong", "Black Myth: Wukong", "黑神话：悟空", "http://example.com/bmw.jpg")
+	if err != nil || !fav1 {
+		t.Fatalf("expected fav1 true, got %v (err: %v)", fav1, err)
+	}
+
+	fav2, err := app.ToggleFavoriteBySlug("elden-ring", "Elden Ring", "艾尔登法环", "http://example.com/er.jpg")
+	if err != nil || !fav2 {
+		t.Fatalf("expected fav2 true, got %v (err: %v)", fav2, err)
+	}
+
+	fav3, err := app.ToggleFavoriteBySlug("cyberpunk-2077", "Cyberpunk 2077", "赛博朋克2077", "http://example.com/cp.jpg")
+	if err != nil || !fav3 {
+		t.Fatalf("expected fav3 true, got %v (err: %v)", fav3, err)
+	}
+
+	favList, err := app.ListFavorites()
+	if err != nil {
+		t.Fatalf("ListFavorites failed: %v", err)
+	}
+	if len(favList) != 3 {
+		t.Fatalf("expected 3 favorites, got %d", len(favList))
+	}
+
+	// 取消其中一个收藏 (Elden Ring)
+	g2, _ := app.gameRepo.GetBySlug(ctx, "elden-ring")
+	if g2 == nil {
+		t.Fatal("expected elden-ring game exists")
+	}
+	favAfter, err := app.ToggleFavorite(g2.ID)
+	if err != nil || favAfter {
+		t.Fatalf("expected fav false after toggle, got %v", favAfter)
+	}
+	favList2, _ := app.ListFavorites()
+	if len(favList2) != 2 {
+		t.Fatalf("expected 2 favorites remaining, got %d", len(favList2))
+	}
+
+	// 2. 根据游戏 ID 查询详情 (GetGameDetail)
+	g1, _ := app.gameRepo.GetBySlug(ctx, "black-myth-wukong")
+	if g1 == nil {
+		t.Fatal("expected black-myth-wukong game exists")
+	}
+	// 先关联一个修改器到 g1
+	tr := &model.Trainer{
+		GameID:      g1.ID,
+		SourceID:    "fling",
+		ExternalID:  "bmw-tr",
+		TitleEN:     "Black Myth Wukong Trainer",
+		TitleCN:     "黑神话：悟空 修改器",
+		DetailURL:   "http://example.com/bmw",
+		Author:      "FLiNG",
+		PublishedAt: time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+	_ = app.trainerRepo.CreateTrainer(ctx, tr)
+	ver := &model.TrainerVersion{
+		TrainerID:   tr.ID,
+		VersionName: "v1.0.8.14815",
+		DownloadURL: "http://example.com/dl",
+		FileName:    "bmw.zip",
+		PublishedAt: time.Now(),
+	}
+	_ = app.trainerRepo.CreateVersion(ctx, ver)
+
+	gameDetail, err := app.GetGameDetail(g1.ID)
+	if err != nil || gameDetail == nil {
+		t.Fatalf("GetGameDetail failed: %v", err)
+	}
+	if gameDetail.GameID != g1.ID {
+		t.Errorf("expected GameID %d, got %d", g1.ID, gameDetail.GameID)
+	}
+	if len(gameDetail.Versions) == 0 {
+		t.Errorf("expected versions in game detail")
+	}
+
+	// 3. 最近使用修改器过滤 (只展示真正启动过的修改器)
+	recentBefore, err := app.GetRecentTrainers(10)
+	if err != nil {
+		t.Fatalf("GetRecentTrainers failed: %v", err)
+	}
+	if len(recentBefore) != 0 {
+		t.Fatalf("expected 0 recent ran trainers, got %d", len(recentBefore))
+	}
+
+	// 导入一个修改器并模拟启动 (RecordRun)
+	exePath := filepath.Join(tempDir, "test_trainer.exe")
+	_ = os.WriteFile(exePath, []byte("fake exe content"), 0755)
+	lt, err := app.ImportCustomTrainer(g1.ID, exePath)
+	if err != nil || lt == nil {
+		t.Fatalf("ImportCustomTrainer failed: %v", err)
+	}
+	// 未启动前，依然应为 0
+	recentStillEmpty, _ := app.GetRecentTrainers(10)
+	if len(recentStillEmpty) != 0 {
+		t.Fatalf("expected 0 before run, got %d", len(recentStillEmpty))
+	}
+	// 启动一次
+	_ = app.localRepo.RecordRun(ctx, lt.ID)
+	recentAfterRun, _ := app.GetRecentTrainers(10)
+	if len(recentAfterRun) != 1 {
+		t.Fatalf("expected 1 recent trainer after run, got %d", len(recentAfterRun))
+	}
+	if recentAfterRun[0].LocalTrainer.ID != lt.ID {
+		t.Errorf("expected lt ID %d, got %d", lt.ID, recentAfterRun[0].LocalTrainer.ID)
+	}
+
+	// 4. 下载历史与活动任务分离及删除历史
+	histRecord := &model.DownloadHistory{
+		TaskID:      101,
+		TrainerID:   tr.ID,
+		VersionID:   ver.ID,
+		GameName:    "黑神话：悟空",
+		TrainerName: "Black Myth Wukong Trainer",
+		VersionName: "v1.0.8",
+		FileName:    "bmw.zip",
+		FileSize:    1024,
+		SavePath:    exePath,
+	}
+	if err := app.dlRepo.AddHistory(ctx, histRecord); err != nil {
+		t.Fatalf("AddHistory failed: %v", err)
+	}
+	histList, err := app.ListDownloadHistory(10)
+	if err != nil || len(histList) == 0 {
+		t.Fatalf("ListDownloadHistory failed: %v", err)
+	}
+	if !histList[0].FileExists {
+		t.Errorf("expected file_exists true since exePath exists")
+	}
+
+	// 删除单条历史
+	if err := app.DeleteDownloadHistory(histList[0].ID); err != nil {
+		t.Fatalf("DeleteDownloadHistory failed: %v", err)
+	}
+	histAfterDel, _ := app.ListDownloadHistory(10)
+	if len(histAfterDel) != 0 {
+		t.Errorf("expected 0 history after delete, got %d", len(histAfterDel))
+	}
+}
+
+func TestRedownloadLocalTrainerAndGetGameDetailFlow(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gth_redownload_test_*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	cfg := &config.AppConfig{
+		BaseDir:                tempDir,
+		DataDir:                filepath.Join(tempDir, "data"),
+		DownloadDir:            filepath.Join(tempDir, "downloads"),
+		LogDir:                 filepath.Join(tempDir, "logs"),
+		MaxConcurrentDownloads: 2,
+		Theme:                  "dark",
+		Language:               "zh-CN",
+		LogLevel:               "debug",
+	}
+
+	app, err := NewApp(cfg)
+	if err != nil {
+		t.Fatalf("NewApp failed: %v", err)
+	}
+	defer app.Shutdown(context.Background())
+
+	app.EventEmitter = func(c context.Context, eventName string, data any) {}
+	ctx := context.Background()
+	app.Startup(ctx)
+
+	// 1. 创建测试游戏与修改器版本
+	game, err := app.gameRepo.GetOrCreateBySlug(ctx, "black-myth-wukong", "Black Myth: Wukong", "黑神话：悟空", "https://example.com/cover.jpg")
+	if err != nil || game == nil {
+		t.Fatalf("GetOrCreateBySlug failed: %v", err)
+	}
+
+	tr := &model.Trainer{
+		GameID:        game.ID,
+		SourceID:      "fling",
+		ExternalID:    "bmw-01",
+		TitleEN:       "Black Myth: Wukong Trainer",
+		TitleCN:       "黑神话：悟空 修改器",
+		DetailURL:     "https://flingtrainer.com/trainer/black-myth-wukong-trainer/",
+		LatestVersion: "v1.0.8",
+	}
+	ver := &model.TrainerVersion{
+		VersionName:  "v1.0.8 Plus 35",
+		DownloadURL:  "https://example.com/download/bmw.zip",
+		FileName:     "bmw.zip",
+		FileSize:     2048,
+		SHA256:       "abc123456789",
+		FeaturesText: "Inf Health\nInf Stamina",
+	}
+	if err := app.trainerRepo.UpsertTrainerWithVersions(ctx, tr, []*model.TrainerVersion{ver}); err != nil {
+		t.Fatalf("UpsertTrainerWithVersions failed: %v", err)
+	}
+
+	versions, _ := app.trainerRepo.ListVersionsByTrainerID(ctx, tr.ID)
+	if len(versions) == 0 {
+		t.Fatalf("expected version in db")
+	}
+	verID := versions[0].ID
+
+	// 2. 测试 GetGameDetail 正常通过 GameID 查询到详情与可用版本列表
+	detailTr, err := app.GetGameDetail(game.ID)
+	if err != nil || detailTr == nil {
+		t.Fatalf("GetGameDetail failed: %v", err)
+	}
+	if len(detailTr.Versions) == 0 {
+		t.Fatalf("expected versions populated from GetGameDetail")
+	}
+
+	// 3. 注册本地修改器记录
+	fakeExePath := filepath.Join(cfg.DownloadDir, "bmw_trainer.exe")
+	_ = os.WriteFile(fakeExePath, []byte("fake binary"), 0644)
+	lt := &model.LocalTrainer{
+		GameID:     game.ID,
+		VersionID:  &verID,
+		FilePath:   fakeExePath,
+		FileSize:   11,
+		SHA256:     "mockhash",
+		SourceName: "FLiNG",
+	}
+	if err := app.localRepo.Upsert(ctx, lt); err != nil {
+		t.Fatalf("Upsert local trainer failed: %v", err)
+	}
+
+	// 4. 模拟本地修改器文件被删除/隔离
+	_ = os.Remove(fakeExePath)
+
+	// 5. 调用 LaunchTrainer 预期捕获友好的文件缺失异常而非系统底层 fork/exec 崩溃
+	launchErr := app.LaunchTrainer(lt.ID, false)
+	if launchErr == nil {
+		t.Fatalf("expected error when launching missing trainer file, got nil")
+	}
+	if !strings.Contains(launchErr.Error(), "不存在") && !strings.Contains(launchErr.Error(), "not exist") {
+		t.Errorf("expected missing file friendly error, got: %v", launchErr)
+	}
+
+	// 6. 调用 RedownloadLocalTrainer 触发重新下载
+	redownloadTask, err := app.RedownloadLocalTrainer(lt.ID)
+	if err != nil {
+		t.Fatalf("RedownloadLocalTrainer failed: %v", err)
+	}
+	if redownloadTask == nil || redownloadTask.VersionID != verID {
+		t.Errorf("expected task for version %d, got %v", verID, redownloadTask)
+	}
+
+	// 7. 再次确认本地修改器记录依然完整保留（禁止静默删除）
+	existingLT, err := app.localRepo.GetByID(ctx, lt.ID)
+	if err != nil || existingLT == nil {
+		t.Fatalf("expected local trainer record retained, got nil: %v", err)
+	}
+}
+
+
 

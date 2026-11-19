@@ -5,6 +5,7 @@ import type { DownloadTask, LocalTrainerDetail, Game, AppConfig, SearchResult } 
 
 export const useAppStore = defineStore('app', () => {
   const downloadTasks = ref<DownloadTask[]>([])
+  const recentlyCompletedTasks = ref<DownloadTask[]>([])
   const localTrainers = ref<LocalTrainerDetail[]>([])
   const favorites = ref<Game[]>([])
   const config = ref<AppConfig | null>(null)
@@ -63,6 +64,7 @@ export const useAppStore = defineStore('app', () => {
 
   // 接收下载进度事件更新
   function handleProgressUpdate(task: DownloadTask) {
+    if (!task) return
     const idx = downloadTasks.value.findIndex(t => t.id === task.id)
     if (idx !== -1) {
       downloadTasks.value[idx] = task
@@ -70,14 +72,25 @@ export const useAppStore = defineStore('app', () => {
       downloadTasks.value.unshift(task)
     }
 
-    // 若下载完成，自动刷新本地库
+    // 若下载完成，自动记录到最近完成队列并刷新本地库与活动下载任务列表
     if (task.status === 'completed') {
+      const cIdx = recentlyCompletedTasks.value.findIndex(t => t.id === task.id)
+      if (cIdx !== -1) {
+        recentlyCompletedTasks.value[cIdx] = task
+      } else {
+        recentlyCompletedTasks.value.unshift(task)
+        if (recentlyCompletedTasks.value.length > 20) {
+          recentlyCompletedTasks.value.pop()
+        }
+      }
       refreshLocalTrainers()
+      refreshDownloads()
     }
   }
 
   return {
     downloadTasks,
+    recentlyCompletedTasks,
     localTrainers,
     favorites,
     config,

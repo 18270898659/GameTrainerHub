@@ -71,6 +71,8 @@ export namespace launcher {
 	
 	export class SecurityCardInfo {
 	    trainer_id: number;
+	    game_id: number;
+	    version_id: number;
 	    game_name: string;
 	    file_name: string;
 	    file_path: string;
@@ -78,6 +80,7 @@ export namespace launcher {
 	    sha256: string;
 	    source_name: string;
 	    is_custom: boolean;
+	    file_exists: boolean;
 	    requires_admin: boolean;
 	    security_notice: string;
 	
@@ -88,6 +91,8 @@ export namespace launcher {
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.trainer_id = source["trainer_id"];
+	        this.game_id = source["game_id"];
+	        this.version_id = source["version_id"];
 	        this.game_name = source["game_name"];
 	        this.file_name = source["file_name"];
 	        this.file_path = source["file_path"];
@@ -95,6 +100,7 @@ export namespace launcher {
 	        this.sha256 = source["sha256"];
 	        this.source_name = source["source_name"];
 	        this.is_custom = source["is_custom"];
+	        this.file_exists = source["file_exists"];
 	        this.requires_admin = source["requires_admin"];
 	        this.security_notice = source["security_notice"];
 	    }
@@ -189,10 +195,13 @@ export namespace model {
 	    trainer_id: number;
 	    version_id: number;
 	    game_name: string;
+	    trainer_name: string;
+	    version_name: string;
 	    file_name: string;
 	    file_size: number;
 	    sha256: string;
 	    save_path: string;
+	    file_exists: boolean;
 	    // Go type: time
 	    completed_at: any;
 	
@@ -207,10 +216,13 @@ export namespace model {
 	        this.trainer_id = source["trainer_id"];
 	        this.version_id = source["version_id"];
 	        this.game_name = source["game_name"];
+	        this.trainer_name = source["trainer_name"];
+	        this.version_name = source["version_name"];
 	        this.file_name = source["file_name"];
 	        this.file_size = source["file_size"];
 	        this.sha256 = source["sha256"];
 	        this.save_path = source["save_path"];
+	        this.file_exists = source["file_exists"];
 	        this.completed_at = this.convertValues(source["completed_at"], null);
 	    }
 	
@@ -236,6 +248,7 @@ export namespace model {
 	    id: number;
 	    version_id: number;
 	    game_name: string;
+	    trainer_name: string;
 	    version_name: string;
 	    file_name: string;
 	    save_path: string;
@@ -260,6 +273,7 @@ export namespace model {
 	        this.id = source["id"];
 	        this.version_id = source["version_id"];
 	        this.game_name = source["game_name"];
+	        this.trainer_name = source["trainer_name"];
 	        this.version_name = source["version_name"];
 	        this.file_name = source["file_name"];
 	        this.save_path = source["save_path"];
@@ -355,6 +369,7 @@ export namespace model {
 	    external_id: string;
 	    title_en: string;
 	    title_cn: string;
+	    cover_url?: string;
 	    detail_url: string;
 	    author: string;
 	    latest_version: string;
@@ -377,6 +392,7 @@ export namespace model {
 	        this.external_id = source["external_id"];
 	        this.title_en = source["title_en"];
 	        this.title_cn = source["title_cn"];
+	        this.cover_url = source["cover_url"];
 	        this.detail_url = source["detail_url"];
 	        this.author = source["author"];
 	        this.latest_version = source["latest_version"];
@@ -414,6 +430,7 @@ export namespace model {
 	    install_path: string;
 	    aliases?: string[];
 	    is_favorite: boolean;
+	    detail_url?: string;
 	    trainers?: Trainer[];
 	    // Go type: time
 	    created_at: any;
@@ -435,6 +452,7 @@ export namespace model {
 	        this.install_path = source["install_path"];
 	        this.aliases = source["aliases"];
 	        this.is_favorite = source["is_favorite"];
+	        this.detail_url = source["detail_url"];
 	        this.trainers = this.convertValues(source["trainers"], Trainer);
 	        this.created_at = this.convertValues(source["created_at"], null);
 	        this.updated_at = this.convertValues(source["updated_at"], null);

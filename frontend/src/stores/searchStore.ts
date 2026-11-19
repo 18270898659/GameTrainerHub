@@ -102,15 +102,40 @@ export const useSearchStore = defineStore('search', () => {
     }
   }
 
-  async function toggleFavorite(item: SearchResult) {
-    if (!item || !item.game_id) return
+  async function toggleFavorite(item: SearchResult | any) {
+    if (!item) return
     try {
-      const nextStatus = await api.toggleFavorite(item.game_id)
+      let nextStatus = false
+      const gameID = item.game_id || item.id || 0
+      const slug = item.slug || ''
+      const nameEN = item.game_name_en || item.name_en || ''
+      const nameCN = item.game_name_cn || item.name_cn || ''
+      const coverURL = item.cover_url || ''
+
+      if (gameID && gameID > 0) {
+        nextStatus = await api.toggleFavorite(gameID)
+      } else if (slug) {
+        nextStatus = await api.toggleFavoriteBySlug(slug, nameEN, nameCN, coverURL)
+      } else {
+        return
+      }
+
       item.is_favorite = nextStatus
-      if (selectedGame.value && selectedGame.value.game_id === item.game_id) {
-        selectedGame.value.is_favorite = nextStatus
+      if (selectedGame.value) {
+        if ((gameID > 0 && selectedGame.value.game_id === gameID) || (slug && selectedGame.value.slug === slug)) {
+          selectedGame.value.is_favorite = nextStatus
+        }
+      }
+      for (const res of results.value) {
+        if ((gameID > 0 && res.game_id === gameID) || (slug && res.slug === slug)) {
+          res.is_favorite = nextStatus
+        }
       }
       ElMessage.success(t(nextStatus ? 'search.favoriteAdded' : 'search.favoriteRemoved'))
+      // 同步刷新全局收藏列表
+      import('./appStore').then(({ useAppStore }) => {
+        useAppStore().refreshFavorites()
+      }).catch(() => {})
     } catch (e: any) {
       ElMessage.error('收藏操作失败: ' + (e?.message || e))
     }
@@ -124,26 +149,65 @@ export const useSearchStore = defineStore('search', () => {
     detailVersions.value = []
 
     // 记录最近访问
-    if (item.game_id) {
+    if (item.game_id && item.game_id > 0) {
       api.recordGameVisit(item.game_id).then(() => {
         loadRecentVisited()
       }).catch(err => console.warn('Record visit failed', err))
     }
 
-    if (!item.detail_url) {
-      loadingDetail.value = false
-      ElMessage.info('该资源暂无在线详情链接')
-      return
-    }
-
     try {
-      const res = await api.getTrainerDetail(item.detail_url)
+      let res: any = null
+      if (item.detail_url) {
+        try {
+          res = await api.getTrainerDetail(item.detail_url)
+        } catch (detailErr) {
+          if (item.game_id && item.game_id > 0) {
+            res = await api.getGameDetail(item.game_id)
+          } else {
+            throw detailErr
+          }
+        }
+      } else if (item.game_id && item.game_id > 0) {
+        res = await api.getGameDetail(item.game_id)
+      } else {
+        loadingDetail.value = false
+        ElMessage.info('该资源暂无在线详情链接')
+        return
+      }
+
       detailVersions.value = res?.versions || []
+      if (res?.trainer?.detail_url && !selectedGame.value.detail_url) {
+        selectedGame.value.detail_url = res.trainer.detail_url
+      }
+      if (res?.trainer?.cover_url && !selectedGame.value.cover_url) {
+        selectedGame.value.cover_url = res.trainer.cover_url
+      }
     } catch (e: any) {
       ElMessage.warning('获取版本详情失败: ' + (e?.message || e || '未知错误'))
     } finally {
       loadingDetail.value = false
     }
+  }
+
+  async function openDetailByGame(game: Game) {
+    if (!game) return
+    const converted: SearchResult = {
+      game_id: game.id,
+      slug: game.slug,
+      game_name_en: game.name_en,
+      game_name_cn: game.name_cn,
+      cover_url: game.cover_url,
+      source_id: 'fling',
+      trainer_title: game.name_cn || game.name_en,
+      detail_url: game.detail_url || '',
+      version_name: '',
+      updated_at: game.updated_at,
+      is_downloaded: false,
+      is_online_only: false,
+      is_favorite: game.is_favorite,
+      score: 100
+    }
+    await openDetail(converted)
   }
 
   function closeDetail() {
@@ -155,6 +219,9 @@ export const useSearchStore = defineStore('search', () => {
     try {
       await api.startDownload(v.id)
       ElMessage.success(t('search.downloadStarted'))
+      import('./appStore').then(({ useAppStore }) => {
+        useAppStore().refreshDownloads()
+      }).catch(() => {})
     } catch (e: any) {
       ElMessage.error(e?.message || String(e))
     } finally {
@@ -188,6 +255,7 @@ export const useSearchStore = defineStore('search', () => {
     executeSearch,
     toggleFavorite,
     openDetail,
+    openDetailByGame,
     closeDetail,
     downloadVersion
   }

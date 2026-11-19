@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"GameTrainerHub/internal/database/repository"
@@ -70,19 +71,38 @@ func (s *TrainerService) ListLocalTrainers(ctx context.Context) ([]*LocalTrainer
 	return details, nil
 }
 
-// GetRecentTrainers 获取最近运行的修改器列表（若未运行过则按创建时间倒序）
+// GetRecentTrainers 获取最近实际启动运行过的修改器列表（按 last_run_at 倒序排列，排除未启动过的修改器）
 func (s *TrainerService) GetRecentTrainers(ctx context.Context, limit int) ([]*LocalTrainerDetail, error) {
 	all, err := s.ListLocalTrainers(ctx)
 	if err != nil {
 		return nil, err
 	}
+	var ranTrainers []*LocalTrainerDetail
+	for _, d := range all {
+		if d.LocalTrainer != nil && d.LocalTrainer.RunCount > 0 && d.LocalTrainer.LastRunAt != nil {
+			ranTrainers = append(ranTrainers, d)
+		}
+	}
+
+	sort.Slice(ranTrainers, func(i, j int) bool {
+		t1 := ranTrainers[i].LocalTrainer.LastRunAt
+		t2 := ranTrainers[j].LocalTrainer.LastRunAt
+		if t1 == nil {
+			return false
+		}
+		if t2 == nil {
+			return true
+		}
+		return t1.After(*t2)
+	})
+
 	if limit <= 0 {
 		limit = 10
 	}
-	if len(all) > limit {
-		return all[:limit], nil
+	if len(ranTrainers) > limit {
+		return ranTrainers[:limit], nil
 	}
-	return all, nil
+	return ranTrainers, nil
 }
 
 // VerifyTrainerIntegrity 校验本地修改器文件 SHA-256 完整性
@@ -188,6 +208,19 @@ func (s *TrainerService) ImportCustomTrainer(ctx context.Context, gameID int64, 
 	existing, err := s.localRepo.GetByFilePath(ctx, filePath)
 	if err == nil && existing != nil {
 		return existing, nil
+	}
+
+	// 若未指定关联游戏 (gameID <= 0)，根据文件名智能解析或创建独立游戏实体，杜绝跨游戏图片与实体串接
+	if gameID <= 0 {
+		baseName := filepath.Base(filePath)
+		cleanName := strings.TrimSuffix(baseName, filepath.Ext(baseName))
+		cleanName = strings.ReplaceAll(cleanName, "_", " ")
+		cleanName = strings.ReplaceAll(cleanName, ".", " ")
+		slug := "custom-" + strings.ToLower(strings.ReplaceAll(cleanName, " ", "-"))
+		g, _ := s.gameRepo.GetOrCreateBySlug(ctx, slug, cleanName, cleanName, "")
+		if g != nil {
+			gameID = g.ID
+		}
 	}
 
 	lt := &model.LocalTrainer{

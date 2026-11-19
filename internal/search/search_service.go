@@ -3,6 +3,7 @@ package search
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -149,20 +150,29 @@ func (s *SearchService) Search(ctx context.Context, filter *model.SearchFilter) 
 		wg.Wait()
 	}
 
-	// 4. 计算相关度打分与排序，并补充收藏状态
+	// 4. 计算相关度打分与排序，并补充游戏实体与收藏状态
 	var finalResults []*model.SearchResult
 	for _, item := range resultMap {
-		if !item.IsFavorite {
-			if item.GameID > 0 {
-				isFav, _ := s.gameRepo.IsFavorite(ctx, item.GameID)
-				item.IsFavorite = isFav
-			} else if item.Slug != "" {
-				if g, _ := s.gameRepo.GetBySlug(ctx, item.Slug); g != nil {
-					item.IsFavorite = g.IsFavorite
-					item.GameID = g.ID
-				}
+		if item.Slug == "" && item.GameNameEN != "" {
+			item.Slug = slugify(item.GameNameEN)
+		}
+		if item.GameNameCN == "" && item.GameNameEN != "" {
+			cnCandidates := s.translator.TranslateEnglishToChinese(item.GameNameEN)
+			if len(cnCandidates) > 0 {
+				item.GameNameCN = cnCandidates[0]
 			}
 		}
+
+		// 确保关联或创建本地游戏记录，赋予稳定有效的 GameID 与收藏状态
+		g, _ := s.gameRepo.GetOrCreateBySlug(ctx, item.Slug, item.GameNameEN, item.GameNameCN, item.CoverURL)
+		if g != nil {
+			item.GameID = g.ID
+			item.IsFavorite = g.IsFavorite
+			if item.CoverURL == "" && g.CoverURL != "" {
+				item.CoverURL = g.CoverURL
+			}
+		}
+
 		item.Score = s.calculateRelevance(item, cleanQuery, expandedTerms)
 		finalResults = append(finalResults, item)
 	}
@@ -332,4 +342,11 @@ func (s *SearchService) calculateRelevance(item *model.SearchResult, query strin
 	}
 
 	return score
+}
+
+func slugify(name string) string {
+	lower := strings.ToLower(name)
+	reg := regexp.MustCompile(`[^a-z0-9]+`)
+	slug := reg.ReplaceAllString(lower, "-")
+	return strings.Trim(slug, "-")
 }

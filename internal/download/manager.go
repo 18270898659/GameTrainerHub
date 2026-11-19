@@ -21,6 +21,7 @@ type DownloadManager struct {
 	dlRepo        *repository.DownloadRepository
 	trainerRepo   *repository.TrainerRepository
 	localRepo     *repository.LocalTrainerRepository
+	gameRepo      *repository.GameRepository
 	httpClient    *http.Client
 	adapter       source.SourceAdapter
 	maxConcurrent int
@@ -86,6 +87,11 @@ func NewDownloadManager(
 	return dm
 }
 
+// SetGameRepo 注入游戏仓储以关联游戏名称与实体
+func (m *DownloadManager) SetGameRepo(gr *repository.GameRepository) {
+	m.gameRepo = gr
+}
+
 // AddListener 注册下载事件监听器 (供 Wails 前端推流)
 func (m *DownloadManager) AddListener(cb ProgressCallback) {
 	m.mu.Lock()
@@ -134,15 +140,35 @@ func (m *DownloadManager) CreateTask(ctx context.Context, versionID int64, downl
 					_ = m.ResumeTask(ext.ID)
 					return ext, nil
 				case model.DownloadStatusCompleted:
-					if _, statErr := os.Stat(ext.SavePath); statErr == nil {
+					// 检查本地修改器解压后的文件或原文件是否存在
+					fileExists := false
+					if m.localRepo != nil {
+						lt, ltErr := m.localRepo.GetByVersionID(ctx, versionID)
+						if ltErr == nil && lt != nil && lt.FilePath != "" {
+							if _, statErr := os.Stat(lt.FilePath); statErr == nil {
+								fileExists = true
+							}
+						}
+					}
+					if !fileExists {
+						if _, statErr := os.Stat(ext.SavePath); statErr == nil {
+							if !strings.HasSuffix(strings.ToLower(ext.SavePath), ".zip") {
+								fileExists = true
+							}
+						}
+					}
+					if fileExists {
 						logger.Info("Trainer version already completed and file exists", "task_id", ext.ID, "path", ext.SavePath)
 						return ext, nil
 					}
-					// 磁盘文件已被删除，重置任务状态并从头重新下载
+					// 磁盘文件已被删除，清理旧临时文件，重置任务状态并从头重新下载
+					_ = os.Remove(ext.SavePath)
+					_ = os.Remove(ext.SavePath + ".tmp")
 					ext.DownloadedBytes = 0
 					ext.Progress = 0
 					ext.Status = model.DownloadStatusPending
 					ext.ErrorMsg = ""
+					ext.Retries = 0
 					_ = m.dlRepo.UpdateTask(ctx, ext)
 					m.taskQueue <- ext.ID
 					m.notifyListeners(ext)
@@ -171,18 +197,36 @@ func (m *DownloadManager) CreateTask(ctx context.Context, versionID int64, downl
 	savePath := filepath.Join(downloadDir, fileName)
 
 	gameName := ""
+	trainerName := ""
 	trainer, _ := m.trainerRepo.GetTrainerByID(ctx, version.TrainerID)
 	if trainer != nil {
-		if trainer.TitleCN != "" {
-			gameName = trainer.TitleCN
-		} else {
-			gameName = trainer.TitleEN
+		trainerName = trainer.TitleEN
+		if m.gameRepo != nil && trainer.GameID > 0 {
+			if g, gErr := m.gameRepo.GetByID(ctx, trainer.GameID); gErr == nil && g != nil {
+				if g.NameCN != "" {
+					gameName = g.NameCN
+				} else {
+					gameName = g.NameEN
+				}
+			}
 		}
+		if gameName == "" {
+			if trainer.TitleCN != "" {
+				gameName = strings.TrimSuffix(trainer.TitleCN, " 修改器")
+			} else {
+				gameName = strings.TrimSuffix(trainer.TitleEN, " Trainer")
+			}
+		}
+	}
+	if gameName == "" {
+		gameName = strings.TrimSuffix(version.FileName, ".zip")
+		gameName = strings.TrimSuffix(gameName, ".exe")
 	}
 
 	task := &model.DownloadTask{
 		VersionID:       versionID,
 		GameName:        gameName,
+		TrainerName:     trainerName,
 		VersionName:     version.VersionName,
 		FileName:        fileName,
 		SavePath:        savePath,
@@ -199,6 +243,36 @@ func (m *DownloadManager) CreateTask(ctx context.Context, versionID int64, downl
 	m.taskQueue <- task.ID
 	m.notifyListeners(task)
 	return task, nil
+}
+
+// RedownloadTask 强制重新下载并解压特定版本修改器（清空旧缓存与文件并重置为待下载）
+func (m *DownloadManager) RedownloadTask(ctx context.Context, versionID int64, downloadDir string) (*model.DownloadTask, error) {
+	existingTasks, err := m.dlRepo.ListTasks(ctx, "")
+	if err == nil {
+		for _, ext := range existingTasks {
+			if ext.VersionID == versionID {
+				switch ext.Status {
+				case model.DownloadStatusDownloading, model.DownloadStatusPending:
+					logger.Info("Redownload task already active", "task_id", ext.ID)
+					return ext, nil
+				default:
+					_ = os.Remove(ext.SavePath)
+					_ = os.Remove(ext.SavePath + ".tmp")
+					ext.DownloadedBytes = 0
+					ext.Progress = 0
+					ext.Status = model.DownloadStatusPending
+					ext.ErrorMsg = ""
+					ext.Retries = 0
+					_ = m.dlRepo.UpdateTask(ctx, ext)
+					m.taskQueue <- ext.ID
+					m.notifyListeners(ext)
+					logger.Info("Successfully scheduled redownload task", "task_id", ext.ID, "version_id", versionID)
+					return ext, nil
+				}
+			}
+		}
+	}
+	return m.CreateTask(ctx, versionID, downloadDir)
 }
 
 // PauseAllTasks 暂停所有进行中或排队中的下载任务
@@ -445,36 +519,17 @@ func (m *DownloadManager) processTask(taskID int64) {
 		return
 	}
 
-	// 下载完成！
-	task.Status = model.DownloadStatusCompleted
-	task.DownloadedBytes = res.FileSize
-	task.TotalBytes = res.FileSize
-	task.Progress = 100.0
-	task.SpeedBytesPerSec = 0
-	_ = m.dlRepo.UpdateTask(context.Background(), task)
-	m.notifyListeners(task)
-	if m.OnTaskComplete != nil {
-		m.OnTaskComplete(task)
-	}
-
-	// 1. 记入下载历史表
-	hist := &model.DownloadHistory{
-		TaskID:    task.ID,
-		TrainerID: version.TrainerID,
-		VersionID: version.ID,
-		GameName:  task.GameName,
-		FileName:  filepath.Base(res.FinalPath),
-		FileSize:  res.FileSize,
-		SHA256:    res.SHA256,
-		SavePath:  res.FinalPath,
-	}
-	_ = m.dlRepo.AddHistory(context.Background(), hist)
-
-	// 2. 自动注册入本地修改器库 (local_trainers)
+	// 1. 自动注册入本地修改器库 (local_trainers)
 	trainer, _ = m.trainerRepo.GetTrainerByID(context.Background(), version.TrainerID)
 	var gameID int64
 	if trainer != nil {
 		gameID = trainer.GameID
+	}
+	if gameID == 0 && task.GameName != "" && m.gameRepo != nil {
+		slug := strings.ToLower(strings.ReplaceAll(task.GameName, " ", "-"))
+		if g, gErr := m.gameRepo.GetOrCreateBySlug(context.Background(), slug, task.GameName, task.GameName, ""); gErr == nil && g != nil {
+			gameID = g.ID
+		}
 	}
 
 	local := &model.LocalTrainer{
@@ -486,7 +541,38 @@ func (m *DownloadManager) processTask(taskID int64) {
 		SourceName: "FLiNG",
 		IsCustom:   false,
 	}
-	_ = m.localRepo.Create(context.Background(), local)
+	_ = m.localRepo.Upsert(context.Background(), local)
+
+	// 2. 记入下载历史表
+	hist := &model.DownloadHistory{
+		TaskID:      task.ID,
+		TrainerID:   version.TrainerID,
+		VersionID:   version.ID,
+		GameName:    task.GameName,
+		TrainerName: task.TrainerName,
+		VersionName: task.VersionName,
+		FileName:    filepath.Base(res.FinalPath),
+		FileSize:    res.FileSize,
+		SHA256:      res.SHA256,
+		SavePath:    res.FinalPath,
+	}
+	_ = m.dlRepo.AddHistory(context.Background(), hist)
+
+	// 3. 下载完成状态流转
+	task.Status = model.DownloadStatusCompleted
+	task.DownloadedBytes = res.FileSize
+	task.TotalBytes = res.FileSize
+	task.Progress = 100.0
+	task.SpeedBytesPerSec = 0
+	_ = m.dlRepo.UpdateTask(context.Background(), task)
+
+	// 4. 通知前端已完成并触发本地修改器库及活动任务刷新
+	m.notifyListeners(task)
+	if m.OnTaskComplete != nil {
+		m.OnTaskComplete(task)
+	}
+
+	logger.Info("Download task successfully completed and registered", "file", res.FinalPath, "sha256", res.SHA256)
 
 	logger.Info("Download task successfully completed and registered", "file", res.FinalPath, "sha256", res.SHA256)
 }

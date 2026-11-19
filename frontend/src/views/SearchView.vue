@@ -75,7 +75,7 @@
           @click="store.openDetail(item)"
         >
           <div class="result-thumb">
-            <img :src="item.cover_url || defaultThumb" :alt="item.game_name_en" />
+            <img :src="item.cover_url || DEFAULT_GAME_COVER" :alt="item.game_name_en" />
             <el-tag v-if="item.is_downloaded" type="success" size="small" class="dl-tag">{{ t('search.downloaded') }}</el-tag>
             <el-tag v-else-if="item.is_online_only" type="info" size="small" class="dl-tag">{{ t('home.tagOnline') }}</el-tag>
             <!-- 收藏按钮 -->
@@ -110,98 +110,22 @@
         </el-empty>
       </div>
     </div>
-
-    <!-- Detail Drawer -->
-    <el-drawer
-      v-model="store.drawerVisible"
-      :title="t('search.drawerTitle')"
-      size="480px"
-      class="detail-drawer"
-    >
-      <div v-if="store.selectedGame" v-loading="store.loadingDetail" class="detail-drawer-content">
-        <div class="detail-header">
-          <img :src="store.selectedGame.cover_url || defaultThumb" class="detail-cover" />
-          <div class="detail-title-group">
-            <div class="drawer-title-row">
-              <h3>{{ store.selectedGame.game_name_cn || store.selectedGame.game_name_en }}</h3>
-              <el-button
-                circle
-                size="small"
-                :type="store.selectedGame.is_favorite ? 'warning' : 'default'"
-                :title="store.selectedGame.is_favorite ? t('search.unfavorite') : t('search.favorite')"
-                @click="store.toggleFavorite(store.selectedGame)"
-              >
-                <el-icon>
-                  <StarFilled v-if="store.selectedGame.is_favorite" />
-                  <Star v-else />
-                </el-icon>
-              </el-button>
-            </div>
-            <p>{{ store.selectedGame.game_name_en }}</p>
-          </div>
-        </div>
-
-        <el-divider />
-
-        <!-- Versions List -->
-        <div class="section-sub">{{ t('search.versionList') }}</div>
-        <div v-if="store.detailVersions.length > 0" class="versions-list">
-          <div
-            v-for="v in store.detailVersions"
-            :key="v.version_name"
-            class="version-item"
-          >
-            <div class="version-name">{{ v.version_name }}</div>
-            <div class="version-sub">
-              <span>{{ v.file_name }}</span>
-            </div>
-            <div class="version-action">
-              <el-button
-                v-if="v.is_downloaded"
-                type="success"
-                size="small"
-                disabled
-              >
-                {{ t('search.downloaded') }}
-              </el-button>
-              <el-button
-                v-else
-                type="primary"
-                size="small"
-                :loading="store.downloadingVerID === v.id"
-                @click="store.downloadVersion(v)"
-              >
-                <el-icon><Download /></el-icon> {{ t('search.downloadBtn') }}
-              </el-button>
-            </div>
-          </div>
-        </div>
-        <div v-else class="text-gray text-sm">{{ t('search.noFeatures') }}</div>
-
-        <!-- Features Cheats List -->
-        <div v-if="store.detailVersions.length > 0 && store.detailVersions[0]?.features_text" class="mt-4">
-          <div class="section-sub">{{ t('search.featuresList') }}</div>
-          <pre class="cheats-box">{{ store.detailVersions[0]?.features_text }}</pre>
-        </div>
-      </div>
-    </el-drawer>
   </div>
 </template>
 
 <script setup lang="ts">
 import { onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { Search, Download, Star, StarFilled } from '@element-plus/icons-vue'
+import { Search, Star, StarFilled } from '@element-plus/icons-vue'
 import { useSearchStore } from '../stores/searchStore'
 import { t } from '../i18n'
+import { DEFAULT_GAME_COVER } from '../utils/assets'
 import type { Game } from '../types'
 
 defineOptions({ name: 'SearchView' })
 
 const route = useRoute()
 const store = useSearchStore()
-
-const defaultThumb = 'https://flingtrainer.com/wp-content/uploads/2020/12/header-7-200x200.jpg'
 
 onMounted(() => {
   const initialQ = route.query.q as string

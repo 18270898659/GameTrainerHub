@@ -92,10 +92,20 @@ export default {
     emptyTasks: 'No active download tasks',
     emptyHistory: 'No download history',
     historyGame: 'Game',
+    historyTrainer: 'Trainer Version',
     historyFile: 'File Name',
     historySize: 'Size',
     historyTime: 'Finished Time',
-    historyAction: 'Action'
+    historyAction: 'Action',
+    fileStatus: 'File Status',
+    fileExists: 'Exists',
+    fileMissing: 'Missing',
+    redownload: 'Redownload',
+    deleteHistory: 'Delete Record',
+    clearAllHistory: 'Clear History',
+    clearHistoryConfirm: 'Are you sure you want to clear all download history? Downloaded files will not be deleted.',
+    clearHistorySuccess: 'Download history cleared',
+    redownloadStarted: 'Download task restarted'
   },
   library: {
     managedCount: 'Managed Trainers:',

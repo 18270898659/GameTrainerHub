@@ -46,22 +46,22 @@
     </div>
 
     <!-- My Favorites Section (if any) -->
-    <div v-if="favorites.length > 0" class="home-section">
+    <div v-if="store.favorites.length > 0" class="home-section">
       <div class="section-header">
         <div class="section-title">
           <el-icon class="text-amber"><StarFilled /></el-icon>
           <span>{{ t('home.favoritesTitle') }}</span>
-          <span class="count-tag">({{ favorites.length }})</span>
+          <span class="count-tag">({{ store.favorites.length }})</span>
         </div>
       </div>
       <div class="favorites-grid">
         <div
-          v-for="fav in favorites"
+          v-for="fav in store.favorites"
           :key="fav.id"
           class="favorite-card"
-          @click="goToGame(fav.name_cn || fav.name_en)"
+          @click="goToGame(fav)"
         >
-          <img :src="fav.cover_url || defaultThumb" class="favorite-cover" />
+          <img :src="fav.cover_url || DEFAULT_GAME_COVER" class="favorite-cover" />
           <div class="favorite-info">
             <div class="fav-name-cn">{{ fav.name_cn || fav.name_en }}</div>
             <div class="fav-name-en">{{ fav.name_en }}</div>
@@ -85,9 +85,9 @@
             v-for="g in recentGames"
             :key="g.id"
             class="list-row"
-            @click="goToGame(g.name_cn || g.name_en)"
+            @click="goToGame(g)"
           >
-            <img :src="g.cover_url || defaultThumb" class="row-thumb" />
+            <img :src="g.cover_url || DEFAULT_GAME_COVER" class="row-thumb" />
             <div class="row-info">
               <div class="row-title">{{ g.name_cn || g.name_en }}</div>
               <div class="row-sub">{{ g.name_en }}</div>
@@ -148,8 +148,20 @@
           @click="goToDetail(item)"
         >
           <div class="card-thumb">
-            <img :src="item.cover_url || defaultThumb" :alt="item.game_name_en" />
+            <img :src="item.cover_url || DEFAULT_GAME_COVER" :alt="item.game_name_en" />
             <div class="badge-source">{{ item.source_id.toUpperCase() }}</div>
+            <!-- 收藏切换按钮（右上角） -->
+            <button
+              class="star-btn"
+              :class="{ 'is-fav': item.is_favorite }"
+              :title="item.is_favorite ? t('search.unfavorite') : t('search.favorite')"
+              @click.stop="toggleLatestFavorite(item)"
+            >
+              <el-icon>
+                <StarFilled v-if="item.is_favorite" />
+                <Star v-else />
+              </el-icon>
+            </button>
           </div>
           <div class="card-info">
             <div class="game-name-cn">{{ item.game_name_cn || item.game_name_en }}</div>
@@ -167,33 +179,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onActivated } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, Clock, Refresh, StarFilled, Compass, Cpu } from '@element-plus/icons-vue'
+import { Search, Clock, Refresh, Star, StarFilled, Compass, Cpu } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAppStore } from '../stores/appStore'
+import { useSearchStore } from '../stores/searchStore'
 import { api } from '../api/wails'
 import { t } from '../i18n'
+import { DEFAULT_GAME_COVER } from '../utils/assets'
 import type { SearchResult, Game, LocalTrainerDetail } from '../types'
 
 const router = useRouter()
 const store = useAppStore()
+const searchStore = useSearchStore()
 const heroQuery = ref('')
 const loading = ref(false)
-const favorites = ref<Game[]>([])
 const recentGames = ref<Game[]>([])
 const recentTrainers = ref<LocalTrainerDetail[]>([])
 
-const defaultThumb = 'https://flingtrainer.com/wp-content/uploads/2020/12/header-7-200x200.jpg'
-
 async function loadDashboardData() {
   try {
-    const [favs, visited, recTrainers] = await Promise.all([
-      api.listFavorites(),
+    const [_, visited, recTrainers] = await Promise.all([
+      store.refreshFavorites(),
       api.getRecentGames(6),
       api.getRecentTrainers(6)
     ])
-    favorites.value = favs || []
     recentGames.value = visited || []
     recentTrainers.value = recTrainers || []
   } catch (e) {
@@ -212,6 +223,20 @@ onMounted(async () => {
   loading.value = false
 })
 
+onActivated(async () => {
+  await Promise.all([
+    store.refreshLatest(),
+    store.refreshLocalTrainers(),
+    store.refreshDownloads(),
+    loadDashboardData()
+  ])
+})
+
+async function toggleLatestFavorite(item: SearchResult) {
+  await searchStore.toggleFavorite(item)
+  await loadDashboardData()
+}
+
 function handleHeroSearch() {
   if (heroQuery.value.trim()) {
     router.push({ path: '/search', query: { q: heroQuery.value.trim() } })
@@ -221,12 +246,12 @@ function handleHeroSearch() {
 }
 
 function goToDetail(item: SearchResult) {
-  router.push({ path: '/search', query: { q: item.game_name_cn || item.game_name_en } })
+  searchStore.openDetail(item)
 }
 
-function goToGame(gameName: string) {
-  if (gameName) {
-    router.push({ path: '/search', query: { q: gameName } })
+function goToGame(game: Game) {
+  if (game) {
+    searchStore.openDetailByGame(game)
   }
 }
 
@@ -277,8 +302,7 @@ async function triggerSync() {
   padding-bottom: 40px;
 }
 .hero-banner {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%),
-              url('https://flingtrainer.com/wp-content/uploads/2020/12/header-7-200x200.jpg') center/cover;
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.98) 100%);
   border-radius: 12px;
   padding: 36px 32px;
   margin-bottom: 24px;
@@ -532,6 +556,34 @@ async function triggerSync() {
   font-weight: 700;
   padding: 2px 6px;
   border-radius: 4px;
+}
+.star-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 2;
+}
+.star-btn:hover {
+  background: rgba(15, 23, 42, 0.9);
+  color: #fbbf24;
+  transform: scale(1.1);
+  border-color: #fbbf24;
+}
+.star-btn.is-fav {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.2);
+  border-color: #fbbf24;
 }
 .card-info {
   padding: 12px;

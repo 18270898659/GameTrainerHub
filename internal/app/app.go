@@ -124,6 +124,7 @@ func NewApp(cfg *config.AppConfig) (*App, error) {
 	searchSvc.RegisterAdapter(flingAdp)
 
 	dlMgr := download.NewDownloadManager(dlRepo, trainerRepo, localRepo, flingAdp, cfg.MaxConcurrentDownloads)
+	dlMgr.SetGameRepo(gameRepo)
 	trainerSvc := trainer.NewTrainerService(gameRepo, trainerRepo, localRepo)
 	steamScan := game.NewSteamScanner()
 	launchSvc := launcher.NewLauncher(localRepo, gameRepo)
@@ -277,6 +278,7 @@ func (a *App) GetTrainerDetail(detailURL string) (*model.Trainer, error) {
 		gameNameEN := strings.TrimSuffix(trainer.TitleEN, " Trainer")
 		slug := slugify(gameNameEN)
 
+		coverURL := trainer.CoverURL
 		game, _ := a.gameRepo.GetBySlug(ctx, slug)
 		var gameID int64
 		if game == nil {
@@ -286,9 +288,10 @@ func (a *App) GetTrainerDetail(detailURL string) (*model.Trainer, error) {
 				gameNameCN = cnCandidates[0]
 			}
 			newGame := &model.Game{
-				Slug:   slug,
-				NameEN: gameNameEN,
-				NameCN: gameNameCN,
+				Slug:     slug,
+				NameEN:   gameNameEN,
+				NameCN:   gameNameCN,
+				CoverURL: coverURL,
 			}
 			if cErr := a.gameRepo.Create(ctx, newGame); cErr == nil {
 				gameID = newGame.ID
@@ -299,6 +302,10 @@ func (a *App) GetTrainerDetail(detailURL string) (*model.Trainer, error) {
 			}
 		} else {
 			gameID = game.ID
+			if game.CoverURL == "" && coverURL != "" {
+				game.CoverURL = coverURL
+				_ = a.gameRepo.Update(ctx, game)
+			}
 			if game.NameCN != "" && trainer.TitleCN == "" {
 				trainer.TitleCN = game.NameCN + " 修改器"
 			}
@@ -340,6 +347,80 @@ func (a *App) GetTrainerDetail(detailURL string) (*model.Trainer, error) {
 	return nil, fmt.Errorf("trainer detail not found for URL: %s", cleanURL)
 }
 
+// GetGameDetail 根据游戏唯一 ID 直接查询修改器详情与可用版本列表
+func (a *App) GetGameDetail(gameID int64) (*model.Trainer, error) {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	game, err := a.gameRepo.GetByID(ctx, gameID)
+	if err != nil || game == nil {
+		return nil, fmt.Errorf("game not found with id: %d", gameID)
+	}
+
+	// 记录最近访问
+	_ = a.gameRepo.RecordVisit(ctx, gameID)
+
+	// 1. 若 game 实体自身已有非空 detail_url，优先直接查询
+	if game.DetailURL != "" {
+		if tr, err := a.GetTrainerDetail(game.DetailURL); err == nil && tr != nil {
+			return tr, nil
+		}
+	}
+
+	// 2. 查找该游戏关联的修改器记录
+	trainers, err := a.trainerRepo.ListTrainersByGameID(ctx, gameID)
+	if err == nil && len(trainers) > 0 {
+		tr := trainers[0]
+		if tr.DetailURL != "" {
+			if detail, err := a.GetTrainerDetail(tr.DetailURL); err == nil && detail != nil {
+				return detail, nil
+			}
+		}
+		// 若数据库已有版本记录，直接返回
+		dbVersions, vErr := a.trainerRepo.ListVersionsByTrainerID(ctx, tr.ID)
+		if vErr == nil && len(dbVersions) > 0 {
+			tr.Versions = dbVersions
+			return tr, nil
+		}
+	}
+
+	// 3. 若尚未入库该修改器，基于 slug 尝试检索或构建官方标准 URL
+	guessURL := fmt.Sprintf("%s/trainer/%s-trainer/", a.flingAdapter.BaseURL(), game.Slug)
+	if tr, err := a.GetTrainerDetail(guessURL); err == nil && tr != nil {
+		return tr, nil
+	}
+	guessURL2 := fmt.Sprintf("%s/trainer/%s/", a.flingAdapter.BaseURL(), game.Slug)
+	if tr, err := a.GetTrainerDetail(guessURL2); err == nil && tr != nil {
+		return tr, nil
+	}
+
+	// 4. 尝试通过在线搜索服务按游戏名查询
+	if a.searchSvc != nil {
+		query := game.NameEN
+		if query == "" {
+			query = game.NameCN
+		}
+		searchResults, sErr := a.searchSvc.Search(ctx, &model.SearchFilter{
+			Query:    query,
+			Page:     1,
+			PageSize: 5,
+		})
+		if sErr == nil {
+			for _, sr := range searchResults {
+				if sr.DetailURL != "" {
+					if tr, tErr := a.GetTrainerDetail(sr.DetailURL); tErr == nil && tr != nil {
+						return tr, nil
+					}
+				}
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("no trainer found for game: %s (%s)", game.NameCN, game.NameEN)
+}
+
 func slugify(name string) string {
 	lower := strings.ToLower(name)
 	reg := regexp.MustCompile(`[^a-z0-9]+`)
@@ -347,13 +428,46 @@ func slugify(name string) string {
 	return strings.Trim(slug, "-")
 }
 
-// GetLatestTrainers 获取原网最近更新修改器
+// GetLatestTrainers 获取原网最近更新修改器，并自动补全游戏实体映射、封面及收藏状态
 func (a *App) GetLatestTrainers(page int) ([]*model.SearchResult, error) {
 	ctx := a.ctx
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return a.flingAdapter.GetLatest(ctx, page)
+	results, err := a.flingAdapter.GetLatest(ctx, page)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, item := range results {
+		slug := slugify(item.GameNameEN)
+		if item.Slug == "" {
+			item.Slug = slug
+		}
+		if item.GameNameCN == "" {
+			cnCandidates := a.translator.TranslateEnglishToChinese(item.GameNameEN)
+			if len(cnCandidates) > 0 {
+				item.GameNameCN = cnCandidates[0]
+			}
+		}
+
+		// 确保关联或创建本地游戏记录，赋予稳定有效的 GameID 与收藏状态
+		g, _ := a.gameRepo.GetOrCreateBySlug(ctx, item.Slug, item.GameNameEN, item.GameNameCN, item.CoverURL)
+		if g != nil {
+			item.GameID = g.ID
+			item.IsFavorite = g.IsFavorite
+			if item.CoverURL == "" && g.CoverURL != "" {
+				item.CoverURL = g.CoverURL
+			}
+		}
+
+		if item.GameID > 0 {
+			if locals, lErr := a.localRepo.ListByGameID(ctx, item.GameID); lErr == nil && len(locals) > 0 {
+				item.IsDownloaded = true
+			}
+		}
+	}
+	return results, nil
 }
 
 // GetLocalTrainers 获取已下载及自定义导入的本地修改器列表（附加运行中状态）
@@ -429,18 +543,49 @@ func (a *App) ResumeDownload(taskID int64) error {
 	return a.dlManager.ResumeTask(taskID)
 }
 
+// RedownloadLocalTrainer 针对文件丢失或损坏的本地修改器重新下载
+func (a *App) RedownloadLocalTrainer(localTrainerID int64) (*model.DownloadTask, error) {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	lt, err := a.localRepo.GetByID(ctx, localTrainerID)
+	if err != nil || lt == nil {
+		return nil, fmt.Errorf("local trainer not found with id: %d", localTrainerID)
+	}
+
+	// 1. 若记录中存在明确的版本 VersionID，直接创建重新下载任务
+	if lt.VersionID != nil && *lt.VersionID > 0 {
+		return a.dlManager.RedownloadTask(ctx, *lt.VersionID, a.cfg.DownloadDir)
+	}
+
+	// 2. 若未绑定 VersionID，尝试查找该关联游戏下的最新版本
+	if lt.GameID > 0 {
+		trainers, tErr := a.trainerRepo.ListTrainersByGameID(ctx, lt.GameID)
+		if tErr == nil && len(trainers) > 0 {
+			versions, vErr := a.trainerRepo.ListVersionsByTrainerID(ctx, trainers[0].ID)
+			if vErr == nil && len(versions) > 0 {
+				return a.dlManager.RedownloadTask(ctx, versions[0].ID, a.cfg.DownloadDir)
+			}
+		}
+	}
+
+	return nil, fmt.Errorf("cannot redownload: no valid version found for trainer ID %d", localTrainerID)
+}
+
 // CancelDownload 取消下载
 func (a *App) CancelDownload(taskID int64) error {
 	return a.dlManager.CancelTask(taskID)
 }
 
-// ListDownloadTasks 查询当前所有下载任务
+// ListDownloadTasks 查询当前所有未完成的活动下载任务（成功任务自动移入下载历史）
 func (a *App) ListDownloadTasks() ([]*model.DownloadTask, error) {
 	ctx := a.ctx
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return a.dlRepo.ListTasks(ctx, "")
+	return a.dlRepo.ListActiveTasks(ctx)
 }
 
 // ListDownloadHistory 查询下载历史
@@ -453,6 +598,40 @@ func (a *App) ListDownloadHistory(limit int) ([]*model.DownloadHistory, error) {
 		limit = 50
 	}
 	return a.dlRepo.ListHistory(ctx, limit)
+}
+
+// DeleteDownloadHistory 删除指定下载历史记录
+func (a *App) DeleteDownloadHistory(id int64) error {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return a.dlRepo.DeleteHistory(ctx, id)
+}
+
+// ClearDownloadHistory 清空所有下载历史
+func (a *App) ClearDownloadHistory() error {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return a.dlRepo.ClearHistory(ctx)
+}
+
+// ToggleFavoriteBySlug 根据 Slug 或游戏名称进行收藏切换，确保未提前入库的游戏也能成功收藏
+func (a *App) ToggleFavoriteBySlug(slug, nameEN, nameCN, coverURL string) (bool, error) {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if slug == "" {
+		slug = slugify(nameEN)
+	}
+	g, err := a.gameRepo.GetOrCreateBySlug(ctx, slug, nameEN, nameCN, coverURL)
+	if err != nil || g == nil {
+		return false, fmt.Errorf("failed to get or create game: %w", err)
+	}
+	return a.trainerSvc.ToggleFavorite(ctx, g.ID)
 }
 
 // GetSecurityCard 获取启动前安全信息卡片

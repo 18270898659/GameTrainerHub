@@ -24,7 +24,7 @@
         :class="{ 'card-missing': item.file_exists === false, 'card-running': item.is_running }"
       >
         <div class="local-card-thumb">
-          <img :src="item.game?.cover_url || defaultThumb" />
+          <img :src="item.game?.cover_url || DEFAULT_GAME_COVER" />
           <div class="badge-group-top">
             <el-tag
               :type="item.local_trainer.is_custom ? 'warning' : 'success'"
@@ -86,20 +86,28 @@
               v-else-if="item.file_exists !== false"
               type="primary"
               size="small"
-              @click="openLaunchModal(item.local_trainer.id)"
+              @click="openLaunchModal(item.local_trainer.id, item)"
             >
               <el-icon><VideoPlay /></el-icon> {{ t('library.launchBtn') }}
             </el-button>
 
-            <!-- 文件丢失时提供重新定位按钮 -->
-            <el-button
-              v-if="item.file_exists === false"
-              type="warning"
-              size="small"
-              @click="relocateTrainerFile(item.local_trainer.id)"
-            >
-              <el-icon><Connection /></el-icon> {{ t('library.relocate') }}
-            </el-button>
+            <!-- 文件丢失时提供重新下载与重新定位按钮 -->
+            <template v-else>
+              <el-button
+                type="warning"
+                size="small"
+                @click="promptMissingFileRecovery(item)"
+              >
+                <el-icon><RefreshRight /></el-icon> 重新下载
+              </el-button>
+              <el-button
+                size="small"
+                plain
+                @click="relocateTrainerFile(item.local_trainer.id)"
+              >
+                <el-icon><Connection /></el-icon> {{ t('library.relocate') }}
+              </el-button>
+            </template>
 
             <el-button
               v-if="item.file_exists !== false"
@@ -193,17 +201,18 @@
     </el-dialog>
 
     <!-- Security Modal Reference -->
-    <SecurityModal ref="securityModalRef" />
+    <SecurityModal ref="securityModalRef" @missing-file="onMissingFileModal" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { Monitor, Plus, VideoPlay, VideoPause, Delete, Check, Connection } from '@element-plus/icons-vue'
+import { ref, onMounted, onActivated } from 'vue'
+import { Monitor, Plus, VideoPlay, VideoPause, Delete, Check, Connection, RefreshRight } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAppStore } from '../stores/appStore'
 import { api } from '../api/wails'
 import { t } from '../i18n'
+import { DEFAULT_GAME_COVER } from '../utils/assets'
 import SecurityModal from '../components/SecurityModal.vue'
 import type { IntegrityResult } from '../types'
 
@@ -212,7 +221,6 @@ defineOptions({ name: 'LibraryView' })
 const store = useAppStore()
 const scanningSteam = ref(false)
 const securityModalRef = ref<InstanceType<typeof SecurityModal> | null>(null)
-const defaultThumb = 'https://flingtrainer.com/wp-content/uploads/2020/12/header-7-200x200.jpg'
 
 // 完整性校验状态
 const integrityDialogVisible = ref(false)
@@ -228,13 +236,49 @@ onMounted(() => {
   store.refreshLocalTrainers()
 })
 
-async function openLaunchModal(id: number) {
+onActivated(() => {
+  store.refreshLocalTrainers()
+})
+
+async function openLaunchModal(id: number, item?: any) {
   try {
     const card = await api.getSecurityCard(id)
     securityModalRef.value?.open(card)
   } catch (e: any) {
-    ElMessage.error(e?.message || String(e))
+    const msg = e?.message || String(e)
+    if (msg.includes('不存在') || msg.includes('not exist') || msg.includes('cannot find')) {
+      promptMissingFileRecovery(item || { local_trainer: { id } })
+    } else {
+      ElMessage.error(msg)
+    }
   }
+}
+
+async function promptMissingFileRecovery(item: any) {
+  try {
+    await ElMessageBox.confirm(
+      '修改器文件不存在，可能已被删除或移动，是否重新下载？',
+      '文件缺失提示',
+      {
+        confirmButtonText: '重新下载',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    await api.redownloadLocalTrainer(item.local_trainer.id)
+    ElMessage.success('已创建重新下载任务，下载完成后将自动更新本地修改器')
+    await store.refreshDownloads()
+  } catch (e: any) {
+    if (e !== 'cancel') {
+      ElMessage.error('创建重新下载任务失败: ' + (e?.message || e))
+    }
+  }
+}
+
+function onMissingFileModal(card: any) {
+  promptMissingFileRecovery({
+    local_trainer: { id: card.trainer_id }
+  })
 }
 
 async function confirmStop(id: number) {
@@ -279,7 +323,7 @@ async function selectAndImportExe() {
   try {
     const selected = await api.selectTrainerExecutable()
     if (selected) {
-      await api.importCustomTrainer(1, selected.trim())
+      await api.importCustomTrainer(0, selected.trim())
       ElMessage.success(t('settings.savedSuccess'))
       await store.refreshLocalTrainers()
     }

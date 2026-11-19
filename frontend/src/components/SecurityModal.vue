@@ -86,6 +86,10 @@ const card = ref<SecurityCardInfo | null>(null)
 const runAsAdmin = ref(false)
 const launching = ref(false)
 
+const emit = defineEmits<{
+  (e: 'missing-file', card: SecurityCardInfo): void
+}>()
+
 function open(info: SecurityCardInfo) {
   card.value = info
   runAsAdmin.value = info.requires_admin || false
@@ -119,6 +123,11 @@ async function openFolder() {
 
 async function confirmLaunch() {
   if (!card.value) return
+  if (card.value.file_exists === false) {
+    visible.value = false
+    emit('missing-file', card.value)
+    return
+  }
   launching.value = true
   try {
     await api.launchTrainer(card.value.trainer_id, runAsAdmin.value)
@@ -126,7 +135,10 @@ async function confirmLaunch() {
     visible.value = false
   } catch (e: any) {
     const msg = e?.message || e || ''
-    if (msg.includes('取消') || msg.includes('cancel')) {
+    if (msg.includes('不存在') || msg.includes('not exist') || msg.includes('cannot find')) {
+      visible.value = false
+      emit('missing-file', card.value)
+    } else if (msg.includes('取消') || msg.includes('cancel')) {
       ElMessage.warning(msg)
     } else {
       ElMessage.error(t('security.launchFailed') + msg)

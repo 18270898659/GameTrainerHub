@@ -24,18 +24,23 @@ declare global {
         App?: {
           Search: (filter: SearchFilter) => Promise<SearchResult[]>
           GetTrainerDetail: (detailURL: string) => Promise<any>
+          GetGameDetail: (gameID: number) => Promise<any>
           GetLatestTrainers: (page: number) => Promise<SearchResult[]>
           GetLocalTrainers: () => Promise<LocalTrainerDetail[]>
           ImportCustomTrainer: (gameID: number, filePath: string) => Promise<LocalTrainer>
           DeleteLocalTrainer: (id: number, deleteFile: boolean) => Promise<void>
           ToggleFavorite: (gameID: number) => Promise<boolean>
+          ToggleFavoriteBySlug: (slug: string, nameEN: string, nameCN: string, coverURL: string) => Promise<boolean>
           ListFavorites: () => Promise<Game[]>
           StartDownload: (versionID: number) => Promise<DownloadTask>
+          RedownloadLocalTrainer: (localTrainerID: number) => Promise<DownloadTask>
           PauseDownload: (taskID: number) => Promise<void>
           ResumeDownload: (taskID: number) => Promise<void>
           CancelDownload: (taskID: number) => Promise<void>
           ListDownloadTasks: () => Promise<DownloadTask[]>
           ListDownloadHistory: (limit: number) => Promise<DownloadHistory[]>
+          DeleteDownloadHistory: (id: number) => Promise<void>
+          ClearDownloadHistory: () => Promise<void>
           GetSecurityCard: (localTrainerID: number) => Promise<SecurityCardInfo>
           LaunchTrainer: (localTrainerID: number, runAsAdmin: boolean) => Promise<void>
           OpenContainingFolder: (filePath: string) => Promise<void>
@@ -140,6 +145,25 @@ export const api = {
     }
   },
 
+  async getGameDetail(gameID: number): Promise<{ trainer: Trainer; versions: TrainerVersion[] }> {
+    if (isWails()) {
+      const res = await window.go!.app!.App!.GetGameDetail(gameID)
+      if (!res) {
+        throw new Error('未找到游戏详情')
+      }
+      if (Array.isArray(res)) {
+        const tr = res[0] || {}
+        const vers = res[1] || tr.versions || []
+        return { trainer: tr, versions: Array.isArray(vers) ? vers : [] }
+      }
+      return {
+        trainer: res,
+        versions: Array.isArray(res.versions) ? res.versions : []
+      }
+    }
+    throw new Error('Not running in Wails desktop')
+  },
+
   async getLatestTrainers(page: number = 1): Promise<SearchResult[]> {
     if (isWails()) {
       return window.go!.app!.App!.GetLatestTrainers(page)
@@ -170,6 +194,13 @@ export const api = {
   async toggleFavorite(gameID: number): Promise<boolean> {
     if (isWails()) {
       return window.go!.app!.App!.ToggleFavorite(gameID)
+    }
+    return false
+  },
+
+  async toggleFavoriteBySlug(slug: string, nameEN: string, nameCN: string, coverURL: string): Promise<boolean> {
+    if (isWails()) {
+      return window.go!.app!.App!.ToggleFavoriteBySlug(slug, nameEN, nameCN, coverURL)
     }
     return false
   },
@@ -218,6 +249,18 @@ export const api = {
       return window.go!.app!.App!.ListDownloadHistory(limit)
     }
     return []
+  },
+
+  async deleteDownloadHistory(id: number): Promise<void> {
+    if (isWails()) {
+      return window.go!.app!.App!.DeleteDownloadHistory(id)
+    }
+  },
+
+  async clearDownloadHistory(): Promise<void> {
+    if (isWails()) {
+      return window.go!.app!.App!.ClearDownloadHistory()
+    }
   },
 
   async getSecurityCard(localTrainerID: number): Promise<SecurityCardInfo> {
@@ -463,9 +506,46 @@ export const api = {
     }
   },
 
+  async redownloadLocalTrainer(localTrainerID: number): Promise<DownloadTask> {
+    if (isWails()) {
+      return window.go!.app!.App!.RedownloadLocalTrainer(localTrainerID)
+    }
+    return {
+      id: Date.now(),
+      version_id: 0,
+      game_name: '本地修改器',
+      version_name: '',
+      file_name: 'trainer.zip',
+      save_path: '',
+      total_bytes: 0,
+      downloaded_bytes: 0,
+      status: 'pending',
+      speed_bytes_per_sec: 0,
+      progress: 0,
+      error_msg: '',
+      retries: 0,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }
+  },
+
   onDownloadProgress(callback: (task: DownloadTask) => void): (() => void) | undefined {
     if (typeof window !== 'undefined' && window.runtime?.EventsOn) {
       return window.runtime.EventsOn('download:progress', callback)
+    }
+    return undefined
+  },
+
+  onDownloadCompleted(callback: (task: DownloadTask) => void): (() => void) | undefined {
+    if (typeof window !== 'undefined' && window.runtime?.EventsOn) {
+      return window.runtime.EventsOn('download:completed', callback)
+    }
+    return undefined
+  },
+
+  onDownloadFailed(callback: (task: DownloadTask) => void): (() => void) | undefined {
+    if (typeof window !== 'undefined' && window.runtime?.EventsOn) {
+      return window.runtime.EventsOn('download:failed', callback)
     }
     return undefined
   },

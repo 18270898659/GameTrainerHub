@@ -54,6 +54,8 @@ type SHELLEXECUTEINFO struct {
 // SecurityCardInfo 启动前安全确认卡片信息
 type SecurityCardInfo struct {
 	TrainerID      int64  `json:"trainer_id"`
+	GameID         int64  `json:"game_id"`
+	VersionID      int64  `json:"version_id"`
 	GameName       string `json:"game_name"`
 	FileName       string `json:"file_name"`
 	FilePath       string `json:"file_path"`
@@ -61,6 +63,7 @@ type SecurityCardInfo struct {
 	SHA256         string `json:"sha256"`
 	SourceName     string `json:"source_name"`
 	IsCustom       bool   `json:"is_custom"`
+	FileExists     bool   `json:"file_exists"`
 	RequiresAdmin  bool   `json:"requires_admin"`
 	SecurityNotice string `json:"security_notice"`
 }
@@ -154,7 +157,12 @@ func (l *Launcher) GetSecurityCard(ctx context.Context, localTrainerID int64) (*
 		}
 	}
 
-	// 动态复核文件当前真实哈希与大小
+	var versionID int64
+	if target.VersionID != nil {
+		versionID = *target.VersionID
+	}
+
+	// 动态复核文件当前真实状态
 	fi, err := os.Stat(target.FilePath)
 	if err != nil {
 		return nil, fmt.Errorf("trainer executable does not exist at %s: %w", target.FilePath, err)
@@ -174,6 +182,8 @@ func (l *Launcher) GetSecurityCard(ctx context.Context, localTrainerID int64) (*
 
 	return &SecurityCardInfo{
 		TrainerID:      target.ID,
+		GameID:         target.GameID,
+		VersionID:      versionID,
 		GameName:       gameName,
 		FileName:       filepath.Base(target.FilePath),
 		FilePath:       target.FilePath,
@@ -181,6 +191,7 @@ func (l *Launcher) GetSecurityCard(ctx context.Context, localTrainerID int64) (*
 		SHA256:         currentHash,
 		SourceName:     target.SourceName,
 		IsCustom:       target.IsCustom,
+		FileExists:     true,
 		RequiresAdmin:  requiresAdmin,
 		SecurityNotice: notice,
 	}, nil
@@ -194,7 +205,7 @@ func (l *Launcher) LaunchExecutable(ctx context.Context, localTrainerID int64, r
 
 	card, err := l.GetSecurityCard(ctx, localTrainerID)
 	if err != nil {
-		return err
+		return fmt.Errorf("修改器文件不存在，可能已被删除或移动: %w", err)
 	}
 
 	filePath := card.FilePath

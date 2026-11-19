@@ -179,6 +179,8 @@ var (
 	reCatalogItem = regexp.MustCompile(`(?s)<a\s+href="(https?://flingtrainer\.com/trainer/[^"/]+/?)"[^>]*>\s*([\s\S]*?)\s*</a>`)
 	reScript      = regexp.MustCompile(`(?si)<script[^>]*>[\s\S]*?</script>`)
 	reStyle       = regexp.MustCompile(`(?si)<style[^>]*>[\s\S]*?</style>`)
+	reOGImage     = regexp.MustCompile(`(?i)<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']`)
+	rePostImg     = regexp.MustCompile(`(?i)<img[^>]*class=["'][^"']*(?:attachment-|wp-post-image)[^"']*["'][^>]*src=["']([^"']+)["']`)
 )
 
 func (a *FlingAdapter) ParseSearchResults(html string) ([]*model.SearchResult, error) {
@@ -294,10 +296,20 @@ func (a *FlingAdapter) ParseDetail(detailURL string, html string) (*model.Traine
 	urlParts := strings.Split(strings.Trim(detailURL, "/"), "/")
 	externalID := urlParts[len(urlParts)-1]
 
+	var coverURL string
+	if m := reOGImage.FindStringSubmatch(html); len(m) > 1 {
+		coverURL = m[1]
+	} else if m := rePostImg.FindStringSubmatch(html); len(m) > 1 {
+		coverURL = m[1]
+	} else if m := reThumb.FindStringSubmatch(html); len(m) > 1 {
+		coverURL = m[1]
+	}
+
 	trainer := &model.Trainer{
 		SourceID:      a.ID(),
 		ExternalID:    externalID,
 		TitleEN:       rawTitle,
+		CoverURL:      coverURL,
 		DetailURL:     detailURL,
 		Author:        "FLiNG",
 		LatestVersion: "",

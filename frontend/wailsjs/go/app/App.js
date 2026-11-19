@@ -18,8 +18,16 @@ export function CheckHotkeyConflict(arg1) {
   return window['go']['app']['App']['CheckHotkeyConflict'](arg1);
 }
 
+export function ClearDownloadHistory() {
+  return window['go']['app']['App']['ClearDownloadHistory']();
+}
+
 export function ClearSearchHistory() {
   return window['go']['app']['App']['ClearSearchHistory']();
+}
+
+export function DeleteDownloadHistory(arg1) {
+  return window['go']['app']['App']['DeleteDownloadHistory'](arg1);
 }
 
 export function DeleteLocalTrainer(arg1, arg2) {
@@ -44,6 +52,10 @@ export function GetConfig() {
 
 export function GetContext() {
   return window['go']['app']['App']['GetContext']();
+}
+
+export function GetGameDetail(arg1) {
+  return window['go']['app']['App']['GetGameDetail'](arg1);
 }
 
 export function GetLatestTrainers(arg1) {
@@ -130,6 +142,10 @@ export function RecordGameVisit(arg1) {
   return window['go']['app']['App']['RecordGameVisit'](arg1);
 }
 
+export function RedownloadLocalTrainer(arg1) {
+  return window['go']['app']['App']['RedownloadLocalTrainer'](arg1);
+}
+
 export function RelocateTrainer(arg1, arg2) {
   return window['go']['app']['App']['RelocateTrainer'](arg1, arg2);
 }
@@ -188,6 +204,10 @@ export function StopTrainer(arg1) {
 
 export function ToggleFavorite(arg1) {
   return window['go']['app']['App']['ToggleFavorite'](arg1);
+}
+
+export function ToggleFavoriteBySlug(arg1, arg2, arg3, arg4) {
+  return window['go']['app']['App']['ToggleFavoriteBySlug'](arg1, arg2, arg3, arg4);
 }
 
 export function TriggerSync() {
