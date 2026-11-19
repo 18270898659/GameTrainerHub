@@ -6,13 +6,19 @@
         <h1 class="hero-title">{{ t('home.heroTitle') }}</h1>
         <p class="hero-subtitle">{{ t('home.heroSubtitle') }}</p>
         
-        <div class="hero-search-box">
+        <div class="hero-search-box" ref="searchBoxRef">
           <el-input
+            ref="searchInputRef"
             v-model="heroQuery"
             size="large"
             :placeholder="t('home.searchPlaceholder')"
             clearable
-            @keyup.enter="handleHeroSearch"
+            @input="onQueryInput"
+            @focus="onInputFocus"
+            @keydown.down.prevent="onKeyDown"
+            @keydown.up.prevent="onKeyUp"
+            @keydown.enter.prevent="onKeyEnter"
+            @keydown.esc="closeSuggestions"
           >
             <template #prefix>
               <el-icon><Search /></el-icon>
@@ -21,6 +27,123 @@
               <el-button type="primary" @click="handleHeroSearch">{{ t('home.searchBtn') }}</el-button>
             </template>
           </el-input>
+
+          <!-- 渐进式搜索联想与自动补全浮层 -->
+          <transition name="el-zoom-in-top">
+            <div v-show="showSuggestions" class="search-suggestions-dropdown">
+              <!-- 加载中状态 -->
+              <div v-if="loadingSuggestions" class="sugg-loading">
+                <el-icon class="is-loading"><Loading /></el-icon>
+                <span>{{ t('home.suggSearching') }}</span>
+              </div>
+
+              <!-- 当有搜索词时：显示联想结果与完整检索入口 -->
+              <template v-else-if="heroQuery.trim()">
+                <div class="sugg-header">
+                  <span class="sugg-title-label">{{ t('home.suggHeader') }}</span>
+                  <span class="sugg-hint-label">Enter: {{ t('home.searchBtn') }} / ESC: 关闭</span>
+                </div>
+
+                <div v-if="suggestions.length > 0" class="sugg-list" role="listbox">
+                  <div
+                    v-for="(item, idx) in suggestions"
+                    :key="item.slug || item.game_id || idx"
+                    class="sugg-item"
+                    :class="{ 'is-active': activeSuggestIndex === idx }"
+                    @mouseenter="activeSuggestIndex = idx"
+                    @click="selectSuggestion(item)"
+                  >
+                    <img :src="item.cover_url || DEFAULT_GAME_COVER" class="sugg-thumb" />
+                    <div class="sugg-info">
+                      <div class="sugg-name-row">
+                        <span class="sugg-title">{{ item.game_name_cn || item.game_name_en }}</span>
+                        <span v-if="item.game_name_cn && item.game_name_en && item.game_name_cn !== item.game_name_en" class="sugg-sub-name">
+                          ({{ item.game_name_en }})
+                        </span>
+                      </div>
+                      <div class="sugg-tags-row">
+                        <el-tag v-if="item.is_downloaded" size="small" type="success" effect="dark">{{ t('home.tagDownloaded') }}</el-tag>
+                        <el-tag v-else size="small" type="info">{{ t('home.tagOnline') }}</el-tag>
+                        <span v-if="item.is_favorite" class="sugg-fav-icon" :title="t('search.favorite')">
+                          <el-icon><StarFilled /></el-icon>
+                        </span>
+                        <span class="sugg-source-badge">{{ (item.source_id || 'FLiNG').toUpperCase() }}</span>
+                      </div>
+                    </div>
+                    <div class="sugg-action">
+                      <span class="sugg-action-text">{{ t('home.suggViewDetail') }}</span>
+                      <el-icon><Right /></el-icon>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-else class="sugg-empty">
+                  <el-icon><InfoFilled /></el-icon>
+                  <span>{{ t('home.suggEmpty') }}</span>
+                </div>
+
+                <!-- 查看全部搜索结果入口 -->
+                <div
+                  class="sugg-footer-search"
+                  :class="{ 'is-active': activeSuggestIndex === suggestions.length }"
+                  @mouseenter="activeSuggestIndex = suggestions.length"
+                  @click="handleHeroSearch"
+                >
+                  <div class="sugg-footer-content">
+                    <el-icon><Search /></el-icon>
+                    <span>{{ t('home.suggViewAll', { query: heroQuery.trim() }) }}</span>
+                  </div>
+                  <span class="sugg-kbd">↵ Enter</span>
+                </div>
+              </template>
+
+              <!-- 当无搜索词聚焦时：展示最近搜索历史与访问记录 -->
+              <template v-else>
+                <!-- 搜索历史 -->
+                <div v-if="searchStore.searchHistory.length > 0" class="sugg-section">
+                  <div class="sugg-header">
+                    <span class="sugg-title-label">{{ t('home.suggRecentSearch') }}</span>
+                    <el-button link size="small" type="danger" @click.stop="searchStore.clearSearchHistory()">清空</el-button>
+                  </div>
+                  <div class="sugg-history-tags">
+                    <el-tag
+                      v-for="kw in searchStore.searchHistory.slice(0, 10)"
+                      :key="kw"
+                      class="sugg-tag"
+                      closable
+                      @click="quickSearch(kw)"
+                      @close="searchStore.removeSearchHistory(kw)"
+                    >
+                      {{ kw }}
+                    </el-tag>
+                  </div>
+                </div>
+
+                <!-- 最近访问游戏 -->
+                <div v-if="recentGames.length > 0" class="sugg-section">
+                  <div class="sugg-header">
+                    <span class="sugg-title-label">{{ t('home.suggRecentVisited') }}</span>
+                  </div>
+                  <div class="sugg-quick-grid">
+                    <div
+                      v-for="g in recentGames.slice(0, 4)"
+                      :key="g.id"
+                      class="sugg-quick-card"
+                      @click="selectGameQuick(g)"
+                    >
+                      <img :src="g.cover_url || DEFAULT_GAME_COVER" class="sugg-quick-thumb" />
+                      <div class="sugg-quick-title">{{ g.name_cn || g.name_en }}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="searchStore.searchHistory.length === 0 && recentGames.length === 0" class="sugg-empty">
+                  <el-icon><Search /></el-icon>
+                  <span>{{ t('home.searchPlaceholder') }}</span>
+                </div>
+              </template>
+            </div>
+          </transition>
         </div>
       </div>
     </div>
@@ -179,9 +302,9 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onActivated } from 'vue'
+import { ref, onMounted, onUnmounted, onActivated } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, Clock, Refresh, Star, StarFilled, Compass, Cpu } from '@element-plus/icons-vue'
+import { Search, Clock, Refresh, Star, StarFilled, Compass, Cpu, Loading, Right, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAppStore } from '../stores/appStore'
 import { useSearchStore } from '../stores/searchStore'
@@ -193,10 +316,21 @@ import type { SearchResult, Game, LocalTrainerDetail } from '../types'
 const router = useRouter()
 const store = useAppStore()
 const searchStore = useSearchStore()
+
+const searchBoxRef = ref<HTMLElement | null>(null)
+const searchInputRef = ref<any>(null)
 const heroQuery = ref('')
 const loading = ref(false)
 const recentGames = ref<Game[]>([])
 const recentTrainers = ref<LocalTrainerDetail[]>([])
+
+// 搜索建议联想状态
+const showSuggestions = ref(false)
+const loadingSuggestions = ref(false)
+const suggestions = ref<SearchResult[]>([])
+const activeSuggestIndex = ref(-1)
+let debounceTimer: any = null
+let currentSeq = 0
 
 async function loadDashboardData() {
   try {
@@ -212,7 +346,117 @@ async function loadDashboardData() {
   }
 }
 
+function onInputFocus() {
+  showSuggestions.value = true
+  if (heroQuery.value.trim() && suggestions.value.length === 0) {
+    fetchSuggestions(heroQuery.value.trim())
+  }
+}
+
+function onQueryInput() {
+  showSuggestions.value = true
+  activeSuggestIndex.value = -1
+  if (debounceTimer) clearTimeout(debounceTimer)
+  const q = heroQuery.value.trim()
+  if (!q) {
+    suggestions.value = []
+    loadingSuggestions.value = false
+    return
+  }
+  loadingSuggestions.value = true
+  debounceTimer = setTimeout(() => {
+    fetchSuggestions(q)
+  }, 250)
+}
+
+async function fetchSuggestions(q: string) {
+  const seq = ++currentSeq
+  try {
+    const res = await api.getSearchSuggestions(q)
+    if (seq === currentSeq) {
+      suggestions.value = (res || []).slice(0, 6)
+      loadingSuggestions.value = false
+    }
+  } catch (e) {
+    if (seq === currentSeq) {
+      console.warn('Failed to get suggestions', e)
+      suggestions.value = []
+      loadingSuggestions.value = false
+    }
+  }
+}
+
+function closeSuggestions() {
+  showSuggestions.value = false
+  activeSuggestIndex.value = -1
+}
+
+function onKeyDown() {
+  if (!showSuggestions.value) {
+    showSuggestions.value = true
+    return
+  }
+  const max = heroQuery.value.trim() ? suggestions.value.length : -1
+  if (max >= 0) {
+    activeSuggestIndex.value = (activeSuggestIndex.value + 1) % (max + 1)
+  }
+}
+
+function onKeyUp() {
+  if (!showSuggestions.value) return
+  const max = heroQuery.value.trim() ? suggestions.value.length : -1
+  if (max >= 0) {
+    activeSuggestIndex.value = (activeSuggestIndex.value - 1 + max + 1) % (max + 1)
+  }
+}
+
+function onKeyEnter() {
+  if (!showSuggestions.value) {
+    handleHeroSearch()
+    return
+  }
+  if (heroQuery.value.trim() && activeSuggestIndex.value >= 0 && activeSuggestIndex.value < suggestions.value.length) {
+    selectSuggestion(suggestions.value[activeSuggestIndex.value])
+    return
+  }
+  handleHeroSearch()
+}
+
+function selectSuggestion(item: SearchResult) {
+  closeSuggestions()
+  searchStore.openDetail(item)
+}
+
+function selectGameQuick(game: Game) {
+  closeSuggestions()
+  searchStore.openDetailByGame(game)
+}
+
+function quickSearch(kw: string) {
+  heroQuery.value = kw
+  closeSuggestions()
+  router.push({ path: '/search', query: { q: kw } })
+}
+
+function handleHeroSearch() {
+  closeSuggestions()
+  const q = heroQuery.value.trim()
+  if (q) {
+    router.push({ path: '/search', query: { q } })
+  } else {
+    router.push('/search')
+  }
+}
+
+function handleClickOutside(e: MouseEvent) {
+  if (searchBoxRef.value && !searchBoxRef.value.contains(e.target as Node)) {
+    closeSuggestions()
+  }
+}
+
 onMounted(async () => {
+  document.addEventListener('click', handleClickOutside)
+  searchStore.loadSearchHistory()
   loading.value = true
   await Promise.all([
     store.refreshLatest(),
@@ -223,7 +467,13 @@ onMounted(async () => {
   loading.value = false
 })
 
+onUnmounted(() => {
+  document.removeEventListener('click', handleClickOutside)
+  if (debounceTimer) clearTimeout(debounceTimer)
+})
+
 onActivated(async () => {
+  searchStore.loadSearchHistory()
   await Promise.all([
     store.refreshLatest(),
     store.refreshLocalTrainers(),
@@ -235,14 +485,6 @@ onActivated(async () => {
 async function toggleLatestFavorite(item: SearchResult) {
   await searchStore.toggleFavorite(item)
   await loadDashboardData()
-}
-
-function handleHeroSearch() {
-  if (heroQuery.value.trim()) {
-    router.push({ path: '/search', query: { q: heroQuery.value.trim() } })
-  } else {
-    router.push('/search')
-  }
 }
 
 function goToDetail(item: SearchResult) {
@@ -326,7 +568,244 @@ async function triggerSync() {
   margin: 0 0 24px 0;
 }
 .hero-search-box {
+  position: relative;
   max-width: 680px;
+}
+.search-suggestions-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 100;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: 0 14px 35px rgba(0, 0, 0, 0.45), 0 4px 12px rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(12px);
+  max-height: 440px;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+.sugg-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  color: var(--accent-cyan);
+  font-size: 13px;
+}
+.sugg-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 16px 8px;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 4px;
+}
+.sugg-title-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.sugg-hint-label {
+  font-size: 11px;
+  color: var(--text-gray);
+}
+.sugg-list {
+  display: flex;
+  flex-direction: column;
+}
+.sugg-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  border-left: 3px solid transparent;
+}
+.sugg-item:hover,
+.sugg-item.is-active {
+  background: var(--bg-card-hover);
+  border-left-color: var(--accent-cyan);
+}
+.sugg-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: 6px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: var(--bg-card-subtle);
+  border: 1px solid var(--border-color);
+}
+.sugg-info {
+  flex: 1;
+  min-width: 0;
+}
+.sugg-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sugg-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sugg-sub-name {
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sugg-tags-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.sugg-fav-icon {
+  color: #fbbf24;
+  font-size: 14px;
+  display: flex;
+  align-items: center;
+}
+.sugg-source-badge {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--accent-tag-bg);
+  color: var(--accent-cyan);
+  font-weight: 600;
+}
+.sugg-action {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-muted);
+  opacity: 0.7;
+  transition: opacity 0.15s ease;
+  white-space: nowrap;
+}
+.sugg-item:hover .sugg-action,
+.sugg-item.is-active .sugg-action {
+  color: var(--accent-cyan);
+  opacity: 1;
+}
+.sugg-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 16px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.sugg-footer-search {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-card-subtle);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.sugg-footer-search:hover,
+.sugg-footer-search.is-active {
+  background: var(--bg-card-hover);
+  color: var(--accent-cyan);
+}
+.sugg-footer-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-main);
+}
+.sugg-footer-search:hover .sugg-footer-content,
+.sugg-footer-search.is-active .sugg-footer-content {
+  color: var(--accent-cyan);
+}
+.sugg-kbd {
+  font-size: 11px;
+  background: var(--border-color);
+  color: var(--text-secondary);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+.sugg-section {
+  padding: 8px 16px;
+}
+.sugg-section:not(:last-child) {
+  border-bottom: 1px solid var(--border-color);
+}
+.sugg-history-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+.sugg-tag {
+  cursor: pointer;
+  background: var(--bg-card-subtle);
+  border-color: var(--border-color);
+  color: var(--text-secondary);
+  transition: all 0.2s ease;
+}
+.sugg-tag:hover {
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
+}
+.sugg-quick-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 8px;
+}
+.sugg-quick-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  background: var(--bg-card-subtle);
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.sugg-quick-card:hover {
+  background: var(--bg-card-hover);
+  border-color: var(--accent-cyan);
+}
+.sugg-quick-thumb {
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+.sugg-quick-title {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-main);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .stats-grid {
   display: grid;

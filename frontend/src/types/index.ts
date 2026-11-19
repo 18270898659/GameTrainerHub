@@ -103,6 +103,9 @@ export interface DownloadHistory {
   save_path: string
   completed_at: string
   file_exists?: boolean
+  game_id?: number
+  cover_url?: string
+  detail_url?: string
 }
 
 export interface LocalTrainer {

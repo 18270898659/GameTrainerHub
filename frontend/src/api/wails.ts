@@ -23,6 +23,7 @@ declare global {
       app?: {
         App?: {
           Search: (filter: SearchFilter) => Promise<SearchResult[]>
+          GetSearchSuggestions: (query: string) => Promise<SearchResult[]>
           GetTrainerDetail: (detailURL: string) => Promise<any>
           GetGameDetail: (gameID: number) => Promise<any>
           GetLatestTrainers: (page: number) => Promise<SearchResult[]>
@@ -39,7 +40,7 @@ declare global {
           CancelDownload: (taskID: number) => Promise<void>
           ListDownloadTasks: () => Promise<DownloadTask[]>
           ListDownloadHistory: (limit: number) => Promise<DownloadHistory[]>
-          DeleteDownloadHistory: (id: number) => Promise<void>
+          DeleteDownloadHistory: (id: number, deletePhysicalFile: boolean) => Promise<void>
           ClearDownloadHistory: () => Promise<void>
           GetSecurityCard: (localTrainerID: number) => Promise<SecurityCardInfo>
           LaunchTrainer: (localTrainerID: number, runAsAdmin: boolean) => Promise<void>
@@ -87,6 +88,13 @@ export const api = {
   async search(filter: SearchFilter): Promise<SearchResult[]> {
     if (isWails()) {
       return window.go!.app!.App!.Search(filter)
+    }
+    return []
+  },
+
+  async getSearchSuggestions(query: string): Promise<SearchResult[]> {
+    if (isWails()) {
+      return window.go!.app!.App!.GetSearchSuggestions(query)
     }
     return []
   },
@@ -251,9 +259,9 @@ export const api = {
     return []
   },
 
-  async deleteDownloadHistory(id: number): Promise<void> {
+  async deleteDownloadHistory(id: number, deletePhysicalFile: boolean = false): Promise<void> {
     if (isWails()) {
-      return window.go!.app!.App!.DeleteDownloadHistory(id)
+      return window.go!.app!.App!.DeleteDownloadHistory(id, deletePhysicalFile)
     }
   },
 

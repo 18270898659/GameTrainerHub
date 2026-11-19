@@ -18,7 +18,7 @@ export function ClearDownloadHistory():Promise<void>;
 
 export function ClearSearchHistory():Promise<void>;
 
-export function DeleteDownloadHistory(arg1:number):Promise<void>;
+export function DeleteDownloadHistory(arg1:number,arg2:boolean):Promise<void>;
 
 export function DeleteLocalTrainer(arg1:number,arg2:boolean):Promise<void>;
 
@@ -45,6 +45,8 @@ export function GetRecentLogs(arg1:number,arg2:string):Promise<Array<model.LogEn
 export function GetRecentTrainers(arg1:number):Promise<Array<trainer.LocalTrainerDetail>>;
 
 export function GetSearchHistory(arg1:number):Promise<Array<string>>;
+
+export function GetSearchSuggestions(arg1:string):Promise<Array<model.SearchResult>>;
 
 export function GetSecurityCard(arg1:number):Promise<launcher.SecurityCardInfo>;
 

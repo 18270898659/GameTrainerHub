@@ -152,15 +152,48 @@ func (r *DownloadRepository) AddHistory(ctx context.Context, h *model.DownloadHi
 	return nil
 }
 
+// GetHistoryByID 获取指定下载历史记录详情
+func (r *DownloadRepository) GetHistoryByID(ctx context.Context, id int64) (*model.DownloadHistory, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT dh.id, dh.task_id, dh.trainer_id, dh.version_id, dh.game_name, 
+		       COALESCE(dh.trainer_name, '') AS trainer_name,
+		       COALESCE(dh.version_name, '') AS version_name,
+		       dh.file_name, dh.file_size, dh.sha256, dh.save_path, dh.completed_at,
+		       COALESCE(tr.game_id, 0) AS game_id,
+		       COALESCE(g.cover_url, '') AS cover_url,
+		       COALESCE(tr.detail_url, '') AS detail_url
+		FROM download_history dh
+		LEFT JOIN trainers tr ON dh.trainer_id = tr.id
+		LEFT JOIN games g ON tr.game_id = g.id
+		WHERE dh.id = ?
+	`, id)
+
+	var h model.DownloadHistory
+	if err := row.Scan(&h.ID, &h.TaskID, &h.TrainerID, &h.VersionID, &h.GameName, &h.TrainerName, &h.VersionName, &h.FileName, &h.FileSize, &h.SHA256, &h.SavePath, &h.CompletedAt, &h.GameID, &h.CoverURL, &h.DetailURL); err != nil {
+		return nil, err
+	}
+	if _, statErr := os.Stat(h.SavePath); statErr == nil {
+		h.FileExists = true
+	} else {
+		h.FileExists = false
+	}
+	return &h, nil
+}
+
 // ListHistory 查询下载历史
 func (r *DownloadRepository) ListHistory(ctx context.Context, limit int) ([]*model.DownloadHistory, error) {
 	rows, err := r.db.QueryContext(ctx, `
-		SELECT id, task_id, trainer_id, version_id, game_name, 
-		       COALESCE(trainer_name, '') AS trainer_name,
-		       COALESCE(version_name, '') AS version_name,
-		       file_name, file_size, sha256, save_path, completed_at
-		FROM download_history
-		ORDER BY completed_at DESC
+		SELECT dh.id, dh.task_id, dh.trainer_id, dh.version_id, dh.game_name, 
+		       COALESCE(dh.trainer_name, '') AS trainer_name,
+		       COALESCE(dh.version_name, '') AS version_name,
+		       dh.file_name, dh.file_size, dh.sha256, dh.save_path, dh.completed_at,
+		       COALESCE(tr.game_id, 0) AS game_id,
+		       COALESCE(g.cover_url, '') AS cover_url,
+		       COALESCE(tr.detail_url, '') AS detail_url
+		FROM download_history dh
+		LEFT JOIN trainers tr ON dh.trainer_id = tr.id
+		LEFT JOIN games g ON tr.game_id = g.id
+		ORDER BY dh.completed_at DESC
 		LIMIT ?
 	`, limit)
 	if err != nil {
@@ -171,7 +204,7 @@ func (r *DownloadRepository) ListHistory(ctx context.Context, limit int) ([]*mod
 	var list []*model.DownloadHistory
 	for rows.Next() {
 		var h model.DownloadHistory
-		if err := rows.Scan(&h.ID, &h.TaskID, &h.TrainerID, &h.VersionID, &h.GameName, &h.TrainerName, &h.VersionName, &h.FileName, &h.FileSize, &h.SHA256, &h.SavePath, &h.CompletedAt); err != nil {
+		if err := rows.Scan(&h.ID, &h.TaskID, &h.TrainerID, &h.VersionID, &h.GameName, &h.TrainerName, &h.VersionName, &h.FileName, &h.FileSize, &h.SHA256, &h.SavePath, &h.CompletedAt, &h.GameID, &h.CoverURL, &h.DetailURL); err != nil {
 			return nil, err
 		}
 		if _, statErr := os.Stat(h.SavePath); statErr == nil {

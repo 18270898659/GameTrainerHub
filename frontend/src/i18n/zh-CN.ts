@@ -37,7 +37,14 @@ export default {
     syncSuccess: '同步完成！新增 {added} 项，更新 {updated} 项',
     syncFailed: '同步失败: ',
     tagDownloaded: '已下载',
-    tagOnline: '在线获取'
+    tagOnline: '在线获取',
+    suggSearching: '正在检索匹配游戏建议...',
+    suggHeader: '实时搜索建议',
+    suggViewAll: '查看全部「{query}」的搜索结果',
+    suggEmpty: '未找到直接匹配的游戏建议，按 Enter 查看完整搜索结果',
+    suggRecentSearch: '最近搜索历史',
+    suggRecentVisited: '最近访问游戏',
+    suggViewDetail: '查看详情'
   },
   search: {
     placeholder: '中英双向搜索：黑神话：悟空 / Black Myth / 赛博朋克2077 / Cyberpunk / sbpk / 老头环...',
@@ -69,8 +76,12 @@ export default {
     favoriteRemoved: '已移出收藏'
   },
   downloads: {
-    tabActive: '下载任务 ({count})',
-    tabHistory: '下载历史',
+    tabAll: '全部任务 ({count})',
+    tabActive: '当前任务 ({count})',
+    tabHistory: '下载历史 ({count})',
+    sectionCurrent: '当前任务 (进行中与待处理)',
+    sectionHistory: '下载历史 (已完成记录)',
+    viewDetail: '查看详情',
     pauseAll: '全部暂停',
     resumeAll: '全部继续',
     pauseAllSuccess: '已暂停全部下载任务',
@@ -102,6 +113,11 @@ export default {
     fileMissing: '文件丢失',
     redownload: '重新下载',
     deleteHistory: '删除记录',
+    deleteHistoryConfirm: '确定要从下载历史中删除此记录吗？',
+    deleteHistoryTip: '提示：默认仅删除下载记录，磁盘上的本地修改器文件仍将完整保留。',
+    deletePhysicalFileCheck: '同时永久删除磁盘上的本地修改器文件及本地库绑定',
+    filterHistoryPlaceholder: '在下载历史中筛选游戏或修改器名称...',
+    noActiveTasksWithHistory: '当前暂无进行中的下载任务 · 下载已完成的修改器已归档至下方「下载历史」',
     clearAllHistory: '清空历史',
     clearHistoryConfirm: '确定要清空全部下载历史记录吗？此操作不会删除已下载的文件。',
     clearHistorySuccess: '下载历史已清空',

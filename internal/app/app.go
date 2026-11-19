@@ -260,6 +260,24 @@ func (a *App) Search(filter model.SearchFilter) ([]*model.SearchResult, error) {
 	return a.searchSvc.Search(ctx, &filter)
 }
 
+// GetSearchSuggestions 提供首页快速搜索建议（限制最多 6 条候选，按相关度排序）
+func (a *App) GetSearchSuggestions(query string) ([]*model.SearchResult, error) {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	clean := strings.TrimSpace(query)
+	if clean == "" {
+		return nil, nil
+	}
+	filter := &model.SearchFilter{
+		Query:    clean,
+		Page:     1,
+		PageSize: 6,
+	}
+	return a.searchSvc.Search(ctx, filter)
+}
+
 // GetTrainerDetail 获取原网修改器全部版本与说明并持久化，保证返回具有数据库自增ID的版本列表
 func (a *App) GetTrainerDetail(detailURL string) (*model.Trainer, error) {
 	ctx := a.ctx
@@ -600,12 +618,25 @@ func (a *App) ListDownloadHistory(limit int) ([]*model.DownloadHistory, error) {
 	return a.dlRepo.ListHistory(ctx, limit)
 }
 
-// DeleteDownloadHistory 删除指定下载历史记录
-func (a *App) DeleteDownloadHistory(id int64) error {
+// DeleteDownloadHistory 删除指定下载历史记录（默认仅删除历史记录，不影响本地物理文件；deletePhysicalFile 为 true 时同时清理本地文件）
+func (a *App) DeleteDownloadHistory(id int64, deletePhysicalFile bool) error {
 	ctx := a.ctx
 	if ctx == nil {
 		ctx = context.Background()
 	}
+
+	if deletePhysicalFile {
+		hist, err := a.dlRepo.GetHistoryByID(ctx, id)
+		if err == nil && hist != nil && hist.SavePath != "" {
+			_ = os.Remove(hist.SavePath)
+			if a.localRepo != nil {
+				if lt, lErr := a.localRepo.GetByFilePath(ctx, hist.SavePath); lErr == nil && lt != nil {
+					_ = a.localRepo.Delete(ctx, lt.ID)
+				}
+			}
+		}
+	}
+
 	return a.dlRepo.DeleteHistory(ctx, id)
 }
 

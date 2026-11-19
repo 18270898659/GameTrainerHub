@@ -125,6 +125,9 @@ type DownloadHistory struct {
 	SavePath    string    `json:"save_path"`
 	FileExists  bool      `json:"file_exists"`
 	CompletedAt time.Time `json:"completed_at"`
+	GameID      int64     `json:"game_id,omitempty"`
+	CoverURL    string    `json:"cover_url,omitempty"`
+	DetailURL   string    `json:"detail_url,omitempty"`
 }
 
 // LocalTrainer 本地已下载/导入的修改器

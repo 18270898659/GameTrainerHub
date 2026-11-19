@@ -37,7 +37,14 @@ export default {
     syncSuccess: 'Sync completed! Added {added}, updated {updated}',
     syncFailed: 'Sync failed: ',
     tagDownloaded: 'Downloaded',
-    tagOnline: 'Available'
+    tagOnline: 'Available',
+    suggSearching: 'Searching suggestions...',
+    suggHeader: 'Real-time Suggestions',
+    suggViewAll: 'View all results for "{query}"',
+    suggEmpty: 'No direct suggestion found. Press Enter to view full results',
+    suggRecentSearch: 'Recent Searches',
+    suggRecentVisited: 'Recently Visited',
+    suggViewDetail: 'View Details'
   },
   search: {
     placeholder: 'Bilingual search: Black Myth: Wukong / Cyberpunk 2077 / Elden Ring...',
@@ -69,8 +76,12 @@ export default {
     favoriteRemoved: 'Removed from favorites'
   },
   downloads: {
-    tabActive: 'Tasks ({count})',
-    tabHistory: 'Download History',
+    tabAll: 'All ({count})',
+    tabActive: 'Current ({count})',
+    tabHistory: 'History ({count})',
+    sectionCurrent: 'Current Download Tasks',
+    sectionHistory: 'Download History',
+    viewDetail: 'View Details',
     pauseAll: 'Pause All',
     resumeAll: 'Resume All',
     pauseAllSuccess: 'All downloads paused',
@@ -102,6 +113,11 @@ export default {
     fileMissing: 'Missing',
     redownload: 'Redownload',
     deleteHistory: 'Delete Record',
+    deleteHistoryConfirm: 'Are you sure you want to remove this record from download history?',
+    deleteHistoryTip: 'Notice: By default this only removes the history record. Local trainer files on disk are kept intact.',
+    deletePhysicalFileCheck: 'Also permanently delete local trainer file on disk',
+    filterHistoryPlaceholder: 'Filter download history by game or trainer name...',
+    noActiveTasksWithHistory: 'No active download tasks. Completed downloads are archived in Download History below.',
     clearAllHistory: 'Clear History',
     clearHistoryConfirm: 'Are you sure you want to clear all download history? Downloaded files will not be deleted.',
     clearHistorySuccess: 'Download history cleared',

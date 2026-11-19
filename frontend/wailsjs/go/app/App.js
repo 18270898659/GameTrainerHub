@@ -26,8 +26,8 @@ export function ClearSearchHistory() {
   return window['go']['app']['App']['ClearSearchHistory']();
 }
 
-export function DeleteDownloadHistory(arg1) {
-  return window['go']['app']['App']['DeleteDownloadHistory'](arg1);
+export function DeleteDownloadHistory(arg1, arg2) {
+  return window['go']['app']['App']['DeleteDownloadHistory'](arg1, arg2);
 }
 
 export function DeleteLocalTrainer(arg1, arg2) {
@@ -80,6 +80,10 @@ export function GetRecentTrainers(arg1) {
 
 export function GetSearchHistory(arg1) {
   return window['go']['app']['App']['GetSearchHistory'](arg1);
+}
+
+export function GetSearchSuggestions(arg1) {
+  return window['go']['app']['App']['GetSearchSuggestions'](arg1);
 }
 
 export function GetSecurityCard(arg1) {

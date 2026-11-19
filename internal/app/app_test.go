@@ -643,13 +643,17 @@ func TestDefectFixesSuite(t *testing.T) {
 		t.Errorf("expected file_exists true since exePath exists")
 	}
 
-	// 删除单条历史
-	if err := app.DeleteDownloadHistory(histList[0].ID); err != nil {
+	// 删除单条历史（默认不删除物理文件）
+	if err := app.DeleteDownloadHistory(histList[0].ID, false); err != nil {
 		t.Fatalf("DeleteDownloadHistory failed: %v", err)
 	}
 	histAfterDel, _ := app.ListDownloadHistory(10)
 	if len(histAfterDel) != 0 {
 		t.Errorf("expected 0 history after delete, got %d", len(histAfterDel))
+	}
+	// 验证物理文件依然保留
+	if _, statErr := os.Stat(exePath); statErr != nil {
+		t.Errorf("expected physical file to still exist after history deletion, got error: %v", statErr)
 	}
 }
 
@@ -763,6 +767,85 @@ func TestRedownloadLocalTrainerAndGetGameDetailFlow(t *testing.T) {
 	existingLT, err := app.localRepo.GetByID(ctx, lt.ID)
 	if err != nil || existingLT == nil {
 		t.Fatalf("expected local trainer record retained, got nil: %v", err)
+	}
+}
+
+func TestSearchSuggestionsAndHistoryPersistence(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gth_suggest_test_*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	cfg := &config.AppConfig{
+		BaseDir:     tempDir,
+		DataDir:     filepath.Join(tempDir, "data"),
+		DownloadDir: filepath.Join(tempDir, "download"),
+		LogDir:      filepath.Join(tempDir, "logs"),
+		Language:    "zh-CN",
+	}
+
+	app, err := NewApp(cfg)
+	if err != nil {
+		t.Fatalf("NewApp failed: %v", err)
+	}
+	app.EventEmitter = func(ctx context.Context, eventName string, data any) {}
+	ctx := context.Background()
+	app.Startup(ctx)
+	defer app.Shutdown(ctx)
+
+	// 1. 建立测试游戏与修改器数据
+	g := &model.Game{
+		Slug:   "elden-ring",
+		NameEN: "ELDEN RING",
+		NameCN: "艾尔登法环",
+	}
+	if err := app.gameRepo.Create(ctx, g); err != nil {
+		t.Fatalf("create game failed: %v", err)
+	}
+	_ = app.ftsRepo.IndexGame(ctx, g.ID, g.NameEN, g.NameCN, "老头环 法环", "aierdengfahuan", "aedfh")
+
+	// 2. 测试 GetSearchSuggestions (中文及拼音建议)
+	suggs, err := app.GetSearchSuggestions("老头环")
+	if err != nil {
+		t.Fatalf("GetSearchSuggestions failed: %v", err)
+	}
+	if len(suggs) == 0 {
+		t.Errorf("expected suggestions for '老头环', got empty")
+	} else if suggs[0].GameNameCN != "艾尔登法环" && suggs[0].GameNameEN != "ELDEN RING" {
+		t.Errorf("unexpected suggestion result: %v", suggs[0])
+	}
+
+	// 3. 测试下载历史物理删除区分机制
+	testFilePath := filepath.Join(tempDir, "download", "test_file.exe")
+	_ = os.WriteFile(testFilePath, []byte("fake-exe"), 0644)
+	hist := &model.DownloadHistory{
+		TaskID:    101,
+		TrainerID: 201,
+		VersionID: 301,
+		GameName:  "ELDEN RING",
+		FileName:  "test_file.exe",
+		SavePath:  testFilePath,
+	}
+	if err := app.dlRepo.AddHistory(ctx, hist); err != nil {
+		t.Fatalf("AddHistory failed: %v", err)
+	}
+
+	// 3.1 默认删除历史不删文件
+	if err := app.DeleteDownloadHistory(hist.ID, false); err != nil {
+		t.Fatalf("DeleteDownloadHistory failed: %v", err)
+	}
+	if _, statErr := os.Stat(testFilePath); statErr != nil {
+		t.Errorf("expected physical file to still exist, got: %v", statErr)
+	}
+
+	// 3.2 显式勾选删除文件
+	_ = app.dlRepo.AddHistory(ctx, hist)
+	if err := app.DeleteDownloadHistory(hist.ID, true); err != nil {
+		t.Fatalf("DeleteDownloadHistory with deletePhysicalFile failed: %v", err)
+	}
+	if _, statErr := os.Stat(testFilePath); !os.IsNotExist(statErr) {
+		t.Errorf("expected physical file to be deleted, but still exists")
 	}
 }
 

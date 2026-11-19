@@ -104,6 +104,7 @@ onMounted(async () => {
     setLanguage(store.config.language as SupportedLanguage)
   }
   await store.refreshDownloads()
+  await store.refreshHistory()
   await store.refreshLocalTrainers()
 
   // 注册 Wails 事件流
@@ -115,6 +116,7 @@ onMounted(async () => {
     store.handleProgressUpdate(task)
     store.refreshLocalTrainers()
     store.refreshDownloads()
+    store.refreshHistory()
   })
 
   // 注册快捷键导航事件 (如 Ctrl+J 直达下载管理)

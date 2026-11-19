@@ -204,6 +204,9 @@ export namespace model {
 	    file_exists: boolean;
 	    // Go type: time
 	    completed_at: any;
+	    game_id?: number;
+	    cover_url?: string;
+	    detail_url?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new DownloadHistory(source);
@@ -224,6 +227,9 @@ export namespace model {
 	        this.save_path = source["save_path"];
 	        this.file_exists = source["file_exists"];
 	        this.completed_at = this.convertValues(source["completed_at"], null);
+	        this.game_id = source["game_id"];
+	        this.cover_url = source["cover_url"];
+	        this.detail_url = source["detail_url"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

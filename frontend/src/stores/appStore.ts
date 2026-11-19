@@ -1,10 +1,11 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { api } from '../api/wails'
-import type { DownloadTask, LocalTrainerDetail, Game, AppConfig, SearchResult } from '../types'
+import type { DownloadTask, DownloadHistory, LocalTrainerDetail, Game, AppConfig, SearchResult } from '../types'
 
 export const useAppStore = defineStore('app', () => {
   const downloadTasks = ref<DownloadTask[]>([])
+  const downloadHistory = ref<DownloadHistory[]>([])
   const recentlyCompletedTasks = ref<DownloadTask[]>([])
   const localTrainers = ref<LocalTrainerDetail[]>([])
   const favorites = ref<Game[]>([])
@@ -23,6 +24,15 @@ export const useAppStore = defineStore('app', () => {
       downloadTasks.value = await api.listDownloadTasks()
     } catch (e) {
       console.error('Failed to list download tasks', e)
+    }
+  }
+
+  // 刷新下载历史记录
+  async function refreshHistory(limit: number = 100) {
+    try {
+      downloadHistory.value = await api.listDownloadHistory(limit)
+    } catch (e) {
+      console.error('Failed to list download history', e)
     }
   }
 
@@ -72,7 +82,7 @@ export const useAppStore = defineStore('app', () => {
       downloadTasks.value.unshift(task)
     }
 
-    // 若下载完成，自动记录到最近完成队列并刷新本地库与活动下载任务列表
+    // 若下载完成，自动记录到最近完成队列并刷新本地库、历史记录与活动下载任务列表
     if (task.status === 'completed') {
       const cIdx = recentlyCompletedTasks.value.findIndex(t => t.id === task.id)
       if (cIdx !== -1) {
@@ -85,11 +95,13 @@ export const useAppStore = defineStore('app', () => {
       }
       refreshLocalTrainers()
       refreshDownloads()
+      refreshHistory()
     }
   }
 
   return {
     downloadTasks,
+    downloadHistory,
     recentlyCompletedTasks,
     localTrainers,
     favorites,
@@ -98,6 +110,7 @@ export const useAppStore = defineStore('app', () => {
     isSyncing,
     activeDownloadsCount,
     refreshDownloads,
+    refreshHistory,
     refreshLocalTrainers,
     refreshFavorites,
     refreshConfig,
