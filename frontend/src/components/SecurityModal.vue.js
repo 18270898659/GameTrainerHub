@@ -8,7 +8,7 @@ const runAsAdmin = ref(false);
 const launching = ref(false);
 function open(info) {
     card.value = info;
-    runAsAdmin.value = false;
+    runAsAdmin.value = info.requires_admin || false;
     visible.value = true;
 }
 function formatBytes(bytes) {
@@ -31,7 +31,7 @@ async function openFolder() {
             await api.openContainingFolder(card.value.file_path);
         }
         catch (e) {
-            ElMessage.error('打开目录失败: ' + (e.message || e));
+            ElMessage.error('打开目录失败: ' + (e?.message || e));
         }
     }
 }
@@ -45,7 +45,13 @@ async function confirmLaunch() {
         visible.value = false;
     }
     catch (e) {
-        ElMessage.error('启动失败: ' + (e.message || e));
+        const msg = e?.message || e || '';
+        if (msg.includes('取消') || msg.includes('cancel')) {
+            ElMessage.warning('已取消启动: ' + msg);
+        }
+        else {
+            ElMessage.error('启动失败: ' + msg);
+        }
     }
     finally {
         launching.value = false;
@@ -220,6 +226,16 @@ if (__VLS_ctx.card) {
         modelValue: (__VLS_ctx.runAsAdmin),
     }, ...__VLS_functionalComponentArgsRest(__VLS_22));
     __VLS_24.slots.default;
+    if (__VLS_ctx.card.requires_admin) {
+        __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
+            ...{ class: "admin-hint-alert" },
+        });
+    }
+    else {
+        __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
+            ...{ class: "admin-hint" },
+        });
+    }
     var __VLS_24;
 }
 {
@@ -316,6 +332,8 @@ var __VLS_3;
 /** @type {__VLS_StyleScopedClasses['path-text']} */ ;
 /** @type {__VLS_StyleScopedClasses['admin-checkbox']} */ ;
 /** @type {__VLS_StyleScopedClasses['mt-3']} */ ;
+/** @type {__VLS_StyleScopedClasses['admin-hint-alert']} */ ;
+/** @type {__VLS_StyleScopedClasses['admin-hint']} */ ;
 /** @type {__VLS_StyleScopedClasses['dialog-footer']} */ ;
 var __VLS_dollars;
 const __VLS_self = (await import('vue')).defineComponent({

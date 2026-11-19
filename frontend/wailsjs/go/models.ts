@@ -50,6 +50,7 @@ export namespace launcher {
 	    sha256: string;
 	    source_name: string;
 	    is_custom: boolean;
+	    requires_admin: boolean;
 	    security_notice: string;
 	
 	    static createFrom(source: any = {}) {
@@ -66,6 +67,7 @@ export namespace launcher {
 	        this.sha256 = source["sha256"];
 	        this.source_name = source["source_name"];
 	        this.is_custom = source["is_custom"];
+	        this.requires_admin = source["requires_admin"];
 	        this.security_notice = source["security_notice"];
 	    }
 	}

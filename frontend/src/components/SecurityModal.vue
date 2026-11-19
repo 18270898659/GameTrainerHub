@@ -53,7 +53,9 @@
 
       <div class="admin-checkbox mt-3">
         <el-checkbox v-model="runAsAdmin">
-          以管理员身份运行 (若游戏本身有反作弊保护或需特权权限)
+          以管理员身份运行
+          <span v-if="card.requires_admin" class="admin-hint-alert"> (检测到修改器包含特权权限清单，启动时将触发 Windows UAC 授权)</span>
+          <span v-else class="admin-hint"> (若游戏本身有反作弊保护或需特权权限)</span>
         </el-checkbox>
       </div>
     </div>
@@ -85,7 +87,7 @@ const launching = ref(false)
 
 function open(info: SecurityCardInfo) {
   card.value = info
-  runAsAdmin.value = false
+  runAsAdmin.value = info.requires_admin || false
   visible.value = true
 }
 
@@ -109,7 +111,7 @@ async function openFolder() {
     try {
       await api.openContainingFolder(card.value.file_path)
     } catch (e: any) {
-      ElMessage.error('打开目录失败: ' + (e.message || e))
+      ElMessage.error('打开目录失败: ' + (e?.message || e))
     }
   }
 }
@@ -122,7 +124,12 @@ async function confirmLaunch() {
     ElMessage.success('修改器已成功拉起运行')
     visible.value = false
   } catch (e: any) {
-    ElMessage.error('启动失败: ' + (e.message || e))
+    const msg = e?.message || e || ''
+    if (msg.includes('取消') || msg.includes('cancel')) {
+      ElMessage.warning('已取消启动: ' + msg)
+    } else {
+      ElMessage.error('启动失败: ' + msg)
+    }
   } finally {
     launching.value = false
   }
@@ -184,6 +191,14 @@ defineExpose({ open })
 .path-text {
   font-size: 12px;
   color: #a8abb2;
+}
+.admin-hint-alert {
+  font-size: 12px;
+  color: #fbbf24;
+}
+.admin-hint {
+  font-size: 12px;
+  color: #94a3b8;
 }
 .dialog-footer {
   display: flex;

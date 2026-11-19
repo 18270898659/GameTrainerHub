@@ -156,3 +156,4 @@ export const useSearchStore = defineStore('search', () => {
     downloadVersion
   }
 })
+

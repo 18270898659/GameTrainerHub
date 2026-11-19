@@ -127,6 +127,7 @@ export interface SecurityCardInfo {
   sha256: string
   source_name: string
   is_custom: boolean
+  requires_admin: boolean
   security_notice: string
 }
 

@@ -2,9 +2,11 @@ package launcher
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"GameTrainerHub/internal/database"
@@ -165,5 +167,101 @@ func TestLauncherDuplicateLaunchAndStop(t *testing.T) {
 	}
 	if launcher.IsTrainerRunning(lt.ID) {
 		t.Errorf("expected trainer to no longer be marked running after stop")
+	}
+}
+
+func TestElevationErrorDetection(t *testing.T) {
+	// 1. 测试 Windows 740 错误判定
+	err740 := &os.PathError{
+		Op:   "fork/exec",
+		Path: `C:\Users\bigant\AppData\Roaming\Game Trainer Hub\download\Cyberpunk 2077\v1.03 Plus 10 Trainer.exe`,
+		Err:  syscall.Errno(740),
+	}
+	if !isElevationRequiredError(err740) {
+		t.Errorf("expected err740 to be recognized as elevation required")
+	}
+
+	// 2. 测试文本形式的提权错误
+	textErr := fmt.Errorf("fork/exec C:\\test.exe: The requested operation requires elevation.")
+	if !isElevationRequiredError(textErr) {
+		t.Errorf("expected text elevation error to be recognized")
+	}
+
+	// 3. 测试普通错误不被误判为提权
+	normErr := fmt.Errorf("file not found")
+	if isElevationRequiredError(normErr) {
+		t.Errorf("did not expect normal error to be recognized as elevation")
+	}
+}
+
+func TestManifestDetection(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gth_manifest_test_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	// 模拟带 requireAdministrator manifest 的 EXE
+	adminExe := filepath.Join(tempDir, "admin_trainer.exe")
+	contentWithAdmin := []byte("MZ....<requestedExecutionLevel level=\"requireAdministrator\" uiAccess=\"false\"/>....")
+	if err := os.WriteFile(adminExe, contentWithAdmin, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if !HasRequireAdministratorManifest(adminExe) {
+		t.Errorf("expected HasRequireAdministratorManifest to return true for admin exe")
+	}
+
+	// 模拟普通 EXE
+	normalExe := filepath.Join(tempDir, "normal_tool.exe")
+	contentNormal := []byte("MZ....<requestedExecutionLevel level=\"asInvoker\" uiAccess=\"false\"/>....")
+	if err := os.WriteFile(normalExe, contentNormal, 0755); err != nil {
+		t.Fatal(err)
+	}
+	if HasRequireAdministratorManifest(normalExe) {
+		t.Errorf("expected HasRequireAdministratorManifest to return false for normal exe")
+	}
+}
+
+func TestOpenContainingFolderRobustness(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gth_explorer_test_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	launcher := NewLauncher(nil, nil)
+
+	// 1. 验证存在的文件打开 (含中文和空格)
+	chineseSpaceDir := filepath.Join(tempDir, "测试 游戏 文件夹 (2024)")
+	_ = os.MkdirAll(chineseSpaceDir, 0755)
+	chineseExe := filepath.Join(chineseSpaceDir, "黑神话 悟空 修改器 v1.0.exe")
+	_ = os.WriteFile(chineseExe, []byte("MZ_TEST"), 0755)
+
+	if err := launcher.OpenContainingFolder(chineseExe); err != nil {
+		t.Errorf("OpenContainingFolder failed on chinese/space file: %v", err)
+	}
+
+	// 2. 验证文件被删除但所在文件夹仍然存在时，优雅降级打开所在目录
+	ghostFile := filepath.Join(chineseSpaceDir, "non_existent.exe")
+	if err := launcher.OpenContainingFolder(ghostFile); err != nil {
+		t.Errorf("OpenContainingFolder should gracefully open parent dir when file missing, got err: %v", err)
+	}
+
+	// 3. 验证连父目录也完全不存在时，返回明确且友好的错误提示
+	impossiblePath := `Z:\definitely\non_existent_drive_99999\ghost.exe`
+	err = launcher.OpenContainingFolder(impossiblePath)
+	if err == nil {
+		t.Errorf("expected error for non-existent path, got nil")
+	} else if !strings.Contains(err.Error(), "不存在") {
+		t.Errorf("expected error message to mention '不存在', got: %v", err)
+	}
+
+	// 4. 验证在 PATH 缺少系统目录时，getExplorerExePath() 依然能够稳定解析到 explorer.exe
+	explorerPath := getExplorerExePath()
+	if explorerPath == "" {
+		t.Fatalf("expected non-empty explorer path")
+	}
+	if _, err := os.Stat(explorerPath); err != nil {
+		t.Fatalf("resolved explorer path does not exist on disk: %s", explorerPath)
 	}
 }
