@@ -30,6 +30,20 @@ func TestConfigLoadAndSave(t *testing.T) {
 	if cfg.Theme != "dark" {
 		t.Errorf("expected Theme='dark', got '%s'", cfg.Theme)
 	}
+	if !cfg.CloseToTray {
+		t.Errorf("expected CloseToTray=true by default, got %v", cfg.CloseToTray)
+	}
+
+	// 测试历史配置文件未包含 close_to_tray 时应默认兼容开启
+	histConfigPath := filepath.Join(tempDir, "hist_config.json")
+	_ = os.WriteFile(histConfigPath, []byte(`{"theme": "dark", "max_concurrent_downloads": 3}`), 0644)
+	histCfg, err := LoadConfig(histConfigPath)
+	if err != nil {
+		t.Fatalf("LoadConfig for hist config failed: %v", err)
+	}
+	if !histCfg.CloseToTray {
+		t.Errorf("expected historical config without close_to_tray to default to true, got %v", histCfg.CloseToTray)
+	}
 
 	// 2. 检查生成的文件是否存在
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {

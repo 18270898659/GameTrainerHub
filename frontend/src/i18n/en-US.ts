@@ -140,6 +140,9 @@ export default {
     langZhCN: '简体中文',
     langZhTW: '繁體中文',
     langEnUS: 'English',
+    sectionTheme: 'Appearance & Theme Settings',
+    themeDark: 'Dark Theme',
+    themeLight: 'Light Theme',
     autoSync: 'Automatic Background Sync',
     autoSyncSwitch: 'Enable Periodic Sync',
     autoSyncInterval: 'Check every {hours} hours',
@@ -156,3 +159,4 @@ export default {
     aboutDisclaimer: 'Disclaimer: All trainers indexed and downloaded by this client originate from the original author\'s official public distribution channels and are strictly for offline single-player entertainment and study. Competitive multiplayer cheating is strictly prohibited.'
   }
 }
+

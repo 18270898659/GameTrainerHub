@@ -1,0 +1,72 @@
+/* =========================================================
+   Game Trainer Hub - 全局主题设计令牌 (Design Tokens)
+   ========================================================= */
+
+:root,
+:root[data-theme="dark"],
+html.dark {
+  --bg-app: #0f172a;
+  --bg-sidebar: #090d16;
+  --bg-topbar: rgba(15, 23, 42, 0.85);
+  --bg-card: rgba(30, 41, 59, 0.5);
+  --bg-card-solid: #1e293b;
+  --bg-card-hover: rgba(51, 65, 85, 0.6);
+  --bg-card-subtle: rgba(15, 23, 42, 0.4);
+  --bg-input: rgba(15, 23, 42, 0.6);
+  --bg-modal: #1e293b;
+
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-subtle: rgba(255, 255, 255, 0.05);
+  --border-hover: rgba(56, 189, 248, 0.4);
+  --border-divider: rgba(255, 255, 255, 0.08);
+
+  --text-main: #f8fafc;
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-gray: #64748b;
+
+  --accent-cyan: #38bdf8;
+  --accent-hover: #0284c7;
+  --accent-tag-bg: rgba(56, 189, 248, 0.12);
+  --accent-tag-border: rgba(56, 189, 248, 0.3);
+
+  --card-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  --code-bg: rgba(0, 0, 0, 0.5);
+  --code-text: #38bdf8;
+  --table-stripe-bg: rgba(255, 255, 255, 0.02);
+}
+
+:root[data-theme="light"],
+html:not(.dark) {
+  --bg-app: #f1f5f9;
+  --bg-sidebar: #ffffff;
+  --bg-topbar: rgba(255, 255, 255, 0.9);
+  --bg-card: #ffffff;
+  --bg-card-solid: #ffffff;
+  --bg-card-hover: #f8fafc;
+  --bg-card-subtle: #f8fafc;
+  --bg-input: #f8fafc;
+  --bg-modal: #ffffff;
+
+  --border-color: #e2e8f0;
+  --border-subtle: #f1f5f9;
+  --border-hover: #0284c7;
+  --border-divider: #e2e8f0;
+
+  --text-main: #0f172a;
+  --text-primary: #1e293b;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --text-gray: #94a3b8;
+
+  --accent-cyan: #0284c7;
+  --accent-hover: #0369a1;
+  --accent-tag-bg: rgba(2, 132, 199, 0.08);
+  --accent-tag-border: rgba(2, 132, 199, 0.25);
+
+  --card-shadow: 0 2px 10px rgba(0, 0, 0, 0.06);
+  --code-bg: #e2e8f0;
+  --code-text: #0369a1;
+  --table-stripe-bg: #f8fafc;
+}

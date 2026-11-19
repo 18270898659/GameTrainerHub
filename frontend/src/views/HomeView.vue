@@ -148,13 +148,17 @@ async function triggerSync() {
   padding-bottom: 40px;
 }
 .hero-banner {
-  background: linear-gradient(135deg, rgba(30, 41, 59, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%),
+  background: linear-gradient(135deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.95) 100%),
               url('https://flingtrainer.com/wp-content/uploads/2020/12/header-7-200x200.jpg') center/cover;
   border-radius: 12px;
   padding: 36px 32px;
   margin-bottom: 24px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--card-shadow);
+  transition: all 0.25s ease;
+}
+:root[data-theme="light"] .hero-banner {
+  background: linear-gradient(135deg, #0284c7 0%, #0369a1 100%);
 }
 .hero-title {
   font-size: 28px;
@@ -164,7 +168,7 @@ async function triggerSync() {
   letter-spacing: -0.5px;
 }
 .hero-subtitle {
-  color: #94a3b8;
+  color: rgba(255, 255, 255, 0.85);
   font-size: 14px;
   margin: 0 0 24px 0;
 }
@@ -178,21 +182,23 @@ async function triggerSync() {
   margin-bottom: 28px;
 }
 .stat-card {
-  background: rgba(30, 41, 59, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 16px 20px;
   backdrop-filter: blur(8px);
+  box-shadow: var(--card-shadow);
+  transition: all 0.25s ease;
 }
 .stat-val {
   font-size: 24px;
   font-weight: 700;
-  color: #38bdf8;
+  color: var(--accent-cyan);
   margin-bottom: 4px;
 }
 .stat-label {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 .section-header {
   display: flex;
@@ -206,7 +212,7 @@ async function triggerSync() {
   gap: 8px;
   font-size: 16px;
   font-weight: 600;
-  color: #f1f5f9;
+  color: var(--text-main);
 }
 .trainers-grid {
   display: grid;
@@ -214,22 +220,23 @@ async function triggerSync() {
   gap: 16px;
 }
 .trainer-card {
-  background: rgba(30, 41, 59, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: var(--card-shadow);
 }
 .trainer-card:hover {
   transform: translateY(-3px);
-  border-color: rgba(56, 189, 248, 0.4);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+  border-color: var(--border-hover);
+  background: var(--bg-card-hover);
 }
 .card-thumb {
   position: relative;
   height: 120px;
-  background: #0f172a;
+  background: var(--bg-card-subtle);
 }
 .card-thumb img {
   width: 100%;
@@ -240,13 +247,14 @@ async function triggerSync() {
   position: absolute;
   top: 8px;
   right: 8px;
-  background: rgba(15, 23, 42, 0.85);
-  color: #38bdf8;
+  background: var(--bg-topbar);
+  color: var(--accent-cyan);
   padding: 2px 6px;
   font-size: 10px;
   font-weight: 700;
   border-radius: 4px;
   backdrop-filter: blur(4px);
+  border: 1px solid var(--border-subtle);
 }
 .card-info {
   padding: 12px;
@@ -254,7 +262,7 @@ async function triggerSync() {
 .game-name-cn {
   font-size: 14px;
   font-weight: 600;
-  color: #f8fafc;
+  color: var(--text-main);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -262,7 +270,7 @@ async function triggerSync() {
 }
 .game-name-en {
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-gray);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -275,7 +283,7 @@ async function triggerSync() {
 }
 .update-time {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 </style>
 

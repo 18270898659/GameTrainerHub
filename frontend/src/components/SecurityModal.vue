@@ -147,14 +147,14 @@ defineExpose({ open })
   font-size: 12px;
   line-height: 1.6;
   margin-top: 4px;
-  color: #dcdfe6;
+  color: var(--text-secondary);
 }
 .info-table {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--bg-card-subtle);
   border-radius: 8px;
   padding: 12px 16px;
   margin-top: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-color);
 }
 .info-row {
   display: flex;
@@ -167,11 +167,11 @@ defineExpose({ open })
 }
 .label {
   width: 85px;
-  color: #909399;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 .val {
-  color: #f2f3f5;
+  color: var(--text-main);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -182,16 +182,16 @@ defineExpose({ open })
   gap: 8px;
 }
 .hash-text code {
-  background: rgba(0, 0, 0, 0.4);
+  background: var(--code-bg);
   padding: 2px 6px;
   border-radius: 4px;
   font-family: monospace;
   font-size: 11px;
-  color: #409eff;
+  color: var(--code-text);
 }
 .path-text {
   font-size: 12px;
-  color: #a8abb2;
+  color: var(--text-muted);
 }
 .admin-hint-alert {
   font-size: 12px;
@@ -199,7 +199,7 @@ defineExpose({ open })
 }
 .admin-hint {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 .dialog-footer {
   display: flex;

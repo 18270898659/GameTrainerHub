@@ -140,6 +140,9 @@ export default {
     langZhCN: '简体中文',
     langZhTW: '繁體中文',
     langEnUS: 'English',
+    sectionTheme: '外观与主题设置',
+    themeDark: '深色主题',
+    themeLight: '浅色主题',
     autoSync: '原网站自动后台同步',
     autoSyncSwitch: '开启定期增量同步',
     autoSyncInterval: '每 {hours} 小时检查一次',
@@ -156,3 +159,4 @@ export default {
     aboutDisclaimer: '免责声明：本客户端所索引下载之修改器均来源于原作者官方公开发布入口，仅供单机单人离线娱乐学习研究。严禁用于任何多人在线竞技作弊，客户端遵守计算机软件保护条例与原网访问礼节。'
   }
 }
+

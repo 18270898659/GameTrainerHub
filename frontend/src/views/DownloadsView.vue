@@ -221,15 +221,15 @@ function getStatusLabel(status: string, retries?: number): string {
   gap: 12px;
 }
 .task-card {
-  background: rgba(30, 41, 59, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 16px;
   transition: all 0.2s ease;
+  box-shadow: var(--card-shadow);
 }
 .card-failed {
   border-color: rgba(239, 68, 68, 0.4);
-  background: rgba(30, 41, 59, 0.7);
 }
 .card-retrying {
   border-color: rgba(234, 179, 8, 0.4);
@@ -248,11 +248,11 @@ function getStatusLabel(status: string, retries?: number): string {
 .task-game {
   font-size: 15px;
   font-weight: 600;
-  color: #f8fafc;
+  color: var(--text-main);
 }
 .task-file {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 .task-actions {
   display: flex;
@@ -283,10 +283,10 @@ function getStatusLabel(status: string, retries?: number): string {
   display: flex;
   justify-content: space-between;
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 .task-speed {
-  color: #38bdf8;
+  color: var(--accent-cyan);
   font-weight: 600;
 }
 .task-status-text {
@@ -302,7 +302,7 @@ function getStatusLabel(status: string, retries?: number): string {
   color: #22c55e;
 }
 .status-downloading {
-  color: #38bdf8;
+  color: var(--accent-cyan);
 }
 .empty-wrap {
   padding: 60px 0;
@@ -311,5 +311,6 @@ function getStatusLabel(status: string, retries?: number): string {
   font-family: monospace;
   font-size: 11px;
   margin-right: 6px;
+  color: var(--text-muted);
 }
 </style>

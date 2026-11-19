@@ -24,6 +24,7 @@ import (
 	"GameTrainerHub/internal/sync"
 	"GameTrainerHub/internal/trainer"
 	"GameTrainerHub/internal/translate"
+	"GameTrainerHub/internal/tray"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"golang.org/x/sys/windows"
@@ -169,6 +170,19 @@ func (a *App) Startup(ctx context.Context) {
 	// 恢复窗口尺寸与屏幕位置
 	a.RestoreWindowState()
 
+	// 初始化系统托盘（在桌面运行时）
+	if isWailsContext(ctx) {
+		_, _ = tray.Init(func() {
+			if a.ctx != nil && isWailsContext(a.ctx) {
+				runtime.WindowShow(a.ctx)
+				runtime.WindowUnminimise(a.ctx)
+			}
+		}, func() {
+			a.Quit()
+		})
+		a.updateTrayLabels(a.cfg.Language)
+	}
+
 	// 恢复上次异常退出的未完成任务
 	_ = a.dlManager.RecoverInterruptedTasks(ctx)
 
@@ -182,6 +196,7 @@ func (a *App) Startup(ctx context.Context) {
 
 // Shutdown Wails 生命周期关闭回调
 func (a *App) Shutdown(ctx context.Context) {
+	tray.Destroy()
 	if a.syncSvc != nil {
 		a.syncSvc.Stop()
 	}
@@ -450,6 +465,7 @@ func (a *App) IsQuitting() bool {
 func (a *App) Quit() {
 	a.isQuitting = true
 	a.SaveWindowState()
+	tray.Destroy()
 	if isWailsContext(a.ctx) {
 		runtime.Quit(a.ctx)
 	}
@@ -600,6 +616,17 @@ func (a *App) SelectDownloadDirectory() (string, error) {
 	return selectedDir, nil
 }
 
+func (a *App) updateTrayLabels(lang string) {
+	switch lang {
+	case "zh-TW":
+		tray.UpdateLabels("顯示主視窗", "結束程式")
+	case "en-US":
+		tray.UpdateLabels("Show Main Window", "Exit Application")
+	default:
+		tray.UpdateLabels("显示主窗口", "退出程序")
+	}
+}
+
 // GetConfig 获取当前配置
 func (a *App) GetConfig() *config.AppConfig {
 	return a.cfg
@@ -623,6 +650,8 @@ func (a *App) SaveConfig(updated *config.AppConfig) error {
 	if err != nil {
 		return err
 	}
+
+	a.updateTrayLabels(updated.Language)
 
 	if a.dlManager != nil {
 		a.dlManager.SetMaxConcurrent(updated.MaxConcurrentDownloads)

@@ -62,7 +62,7 @@ func DefaultConfig() *AppConfig {
 		Language:               "zh-CN",
 		LogLevel:               "info",
 		SafeLaunchPrompt:       true,
-		CloseToTray:            false,
+		CloseToTray:            true,
 		RememberWindowSize:     true,
 		WindowWidth:            1280,
 		WindowHeight:           820,
@@ -108,6 +108,14 @@ func LoadConfig(customPath string) (*AppConfig, error) {
 
 	if err := json.Unmarshal(data, cfg); err != nil {
 		return nil, err
+	}
+
+	// 历史配置兼容：若历史配置文件中未包含 close_to_tray 字段，默认设置为开启
+	var rawMap map[string]json.RawMessage
+	if err := json.Unmarshal(data, &rawMap); err == nil {
+		if _, hasCloseToTray := rawMap["close_to_tray"]; !hasCloseToTray {
+			cfg.CloseToTray = true
+		}
 	}
 
 	// 补全内部字段

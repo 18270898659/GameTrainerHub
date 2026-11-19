@@ -113,32 +113,24 @@ onUnmounted(() => {
 </script>
 
 <style>
-/* 全局暗色电竞主题基础样式 */
-:root {
-  --bg-dark: #0f172a;
-  --bg-sidebar: #090d16;
-  --accent-cyan: #38bdf8;
-  --accent-hover: #0284c7;
-  --text-main: #f8fafc;
-  --text-muted: #94a3b8;
-  --border-color: rgba(255, 255, 255, 0.08);
-}
-
+/* 全局基础样式 */
 body {
   margin: 0;
   padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  background-color: var(--bg-dark);
+  background-color: var(--bg-app);
   color: var(--text-main);
   user-select: none;
   overflow: hidden;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 .app-layout {
   display: flex;
   height: 100vh;
   width: 100vw;
-  background-color: var(--bg-dark);
+  background-color: var(--bg-app);
+  transition: background-color 0.25s ease;
 }
 
 .sidebar {
@@ -148,6 +140,7 @@ body {
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
+  transition: background-color 0.25s ease, border-color 0.25s ease;
 }
 
 .app-brand {
@@ -168,12 +161,13 @@ body {
   align-items: center;
   justify-content: center;
   box-shadow: 0 0 15px rgba(56, 189, 248, 0.4);
+  color: #fff;
 }
 
 .brand-name {
   font-size: 16px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-main);
   letter-spacing: 0.5px;
 }
 
@@ -205,13 +199,13 @@ body {
 }
 
 .nav-item:hover {
-  color: #fff;
-  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-main);
+  background: var(--bg-card-hover);
 }
 
 .nav-item.router-link-exact-active {
-  color: #fff;
-  background: rgba(56, 189, 248, 0.15);
+  color: var(--accent-cyan);
+  background: var(--accent-tag-bg);
   font-weight: 600;
 }
 
@@ -270,14 +264,15 @@ body {
   display: flex;
   align-items: center;
   border-bottom: 1px solid var(--border-color);
-  background: rgba(15, 23, 42, 0.6);
+  background: var(--bg-topbar);
   backdrop-filter: blur(8px);
+  transition: background-color 0.25s ease, border-color 0.25s ease;
 }
 
 .window-title {
   font-size: 15px;
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--text-main);
 }
 
 .page-container {

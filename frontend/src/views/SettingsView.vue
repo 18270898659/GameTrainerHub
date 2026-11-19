@@ -165,6 +165,29 @@
       </div>
     </div>
 
+    <!-- 外观与主题设置模块 -->
+    <div class="settings-card">
+      <h3 class="settings-title">{{ t('settings.sectionTheme') }}</h3>
+
+      <div class="theme-selector-wrap">
+        <el-radio-group
+          v-model="selectedTheme"
+          size="default"
+          class="custom-radio-group"
+          @change="onThemeChange"
+        >
+          <el-radio-button value="dark">
+            <el-icon class="theme-btn-icon"><Moon /></el-icon>
+            {{ t('settings.themeDark') }}
+          </el-radio-button>
+          <el-radio-button value="light">
+            <el-icon class="theme-btn-icon"><Sunny /></el-icon>
+            {{ t('settings.themeLight') }}
+          </el-radio-button>
+        </el-radio-group>
+      </div>
+    </div>
+
     <!-- 保存按钮栏 -->
     <div class="actions-card">
       <el-button type="primary" size="large" :loading="saving" @click="saveSettings">
@@ -187,10 +210,11 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { QuestionFilled, FolderOpened, FolderAdd } from '@element-plus/icons-vue'
+import { QuestionFilled, FolderOpened, FolderAdd, Moon, Sunny } from '@element-plus/icons-vue'
 import { useAppStore } from '../stores/appStore'
 import { api } from '../api/wails'
 import { t, currentLanguage, setLanguage, type SupportedLanguage } from '../i18n'
+import { currentTheme, setTheme, type ThemeMode } from '../theme'
 import type { AppConfig } from '../types'
 
 const store = useAppStore()
@@ -198,6 +222,7 @@ const form = ref<AppConfig | null>(null)
 const saving = ref(false)
 const selectingDir = ref(false)
 const selectedLanguage = ref<SupportedLanguage>(currentLanguage.value)
+const selectedTheme = ref<ThemeMode>(currentTheme.value)
 
 onMounted(async () => {
   await store.refreshConfig()
@@ -206,6 +231,10 @@ onMounted(async () => {
     if (store.config.language) {
       selectedLanguage.value = store.config.language as SupportedLanguage
       setLanguage(store.config.language as SupportedLanguage)
+    }
+    if (store.config.theme) {
+      selectedTheme.value = store.config.theme as ThemeMode
+      setTheme(store.config.theme as ThemeMode)
     }
   }
 })
@@ -261,6 +290,17 @@ async function onLanguageChange(val: any) {
   }
 }
 
+// 主题切换处理 (即时全局响应并持久化)
+async function onThemeChange(val: any) {
+  const mode = val as ThemeMode
+  setTheme(mode)
+  selectedTheme.value = mode
+  if (form.value) {
+    form.value.theme = mode
+    await saveSettingsSilently()
+  }
+}
+
 // 静默自动保存配置
 async function saveSettingsSilently() {
   if (!form.value) return
@@ -299,16 +339,18 @@ async function saveSettings() {
   padding-bottom: 40px;
 }
 .settings-card {
-  background: rgba(30, 41, 59, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 24px;
+  box-shadow: var(--card-shadow);
+  transition: all 0.2s ease;
 }
 .settings-title {
   margin: 0 0 20px 0;
   font-size: 16px;
   font-weight: 600;
-  color: #f8fafc;
+  color: var(--text-main);
 }
 
 /* 提示图标与 Tooltip */
@@ -317,17 +359,17 @@ async function saveSettings() {
   align-items: center;
   gap: 8px;
   font-size: 14px;
-  color: #cbd5e1;
+  color: var(--text-secondary);
   font-weight: 500;
 }
 .tip-icon {
   font-size: 15px;
-  color: #38bdf8;
+  color: var(--accent-cyan);
   cursor: pointer;
   transition: color 0.2s;
 }
 .tip-icon:hover {
-  color: #7dd3fc;
+  color: var(--accent-hover);
 }
 
 /* 存储路径卡片 */
@@ -336,8 +378,8 @@ async function saveSettings() {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  background: rgba(15, 23, 42, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 10px 14px;
   width: 100%;
@@ -353,18 +395,18 @@ async function saveSettings() {
   transition: all 0.2s ease;
 }
 .path-display-text:hover .path-text {
-  color: #38bdf8;
+  color: var(--accent-cyan);
   text-decoration: underline;
 }
 .folder-icon {
   font-size: 18px;
-  color: #38bdf8;
+  color: var(--accent-cyan);
   flex-shrink: 0;
 }
 .path-text {
   font-family: Consolas, "Courier New", monospace;
   font-size: 13px;
-  color: #e2e8f0;
+  color: var(--text-primary);
   word-break: break-all;
   white-space: nowrap;
   overflow: hidden;
@@ -388,9 +430,9 @@ async function saveSettings() {
 .slider-val-tag {
   font-size: 13px;
   font-weight: 600;
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.12);
-  border: 1px solid rgba(56, 189, 248, 0.3);
+  color: var(--accent-cyan);
+  background: var(--accent-tag-bg);
+  border: 1px solid var(--accent-tag-border);
   padding: 2px 10px;
   border-radius: 4px;
   white-space: nowrap;
@@ -398,7 +440,7 @@ async function saveSettings() {
 }
 .slider-hint-text {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-muted);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -424,21 +466,26 @@ async function saveSettings() {
 .item-label {
   font-size: 14px;
   font-weight: 500;
-  color: #f1f5f9;
+  color: var(--text-primary);
 }
 .item-desc {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 .inner-divider {
   margin: 12px 0;
-  border-color: rgba(255, 255, 255, 0.05);
+  border-color: var(--border-subtle);
 }
 
-/* 语言选择 */
-.language-selector-wrap {
+/* 语言与主题选择 */
+.language-selector-wrap,
+.theme-selector-wrap {
   display: flex;
   align-items: center;
+}
+.theme-btn-icon {
+  margin-right: 6px;
+  vertical-align: middle;
 }
 
 /* 开关行 */
@@ -449,7 +496,7 @@ async function saveSettings() {
 }
 .switch-extra-hint {
   font-size: 13px;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 
 .actions-card {
@@ -458,16 +505,16 @@ async function saveSettings() {
 }
 
 .about-card {
-  background: rgba(15, 23, 42, 0.4);
+  background: var(--bg-card-subtle);
 }
 .about-p {
   font-size: 13px;
-  color: #94a3b8;
+  color: var(--text-muted);
   line-height: 1.6;
   margin: 6px 0;
 }
 .text-gray {
-  color: #64748b;
+  color: var(--text-gray);
   font-size: 12px;
 }
 </style>
@@ -480,8 +527,9 @@ async function saveSettings() {
   line-height: 1.6 !important;
   font-size: 12px !important;
   padding: 10px 14px !important;
-  background-color: #1e293b !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5) !important;
+  background-color: var(--bg-modal) !important;
+  color: var(--text-main) !important;
+  border: 1px solid var(--border-color) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
 }
 </style>

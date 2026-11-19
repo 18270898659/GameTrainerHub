@@ -198,7 +198,7 @@ function formatBytes(bytes: number): string {
   color: #94a3b8;
 }
 .lib-count strong {
-  color: #38bdf8;
+  color: var(--accent-cyan);
 }
 .right-buttons {
   display: flex;
@@ -210,20 +210,22 @@ function formatBytes(bytes: number): string {
   gap: 16px;
 }
 .local-card {
-  background: rgba(30, 41, 59, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
   transition: all 0.2s ease;
+  box-shadow: var(--card-shadow);
 }
 .local-card:hover {
   transform: translateY(-2px);
-  border-color: rgba(56, 189, 248, 0.4);
+  border-color: var(--border-hover);
+  background: var(--bg-card-hover);
 }
 .local-card-thumb {
   position: relative;
   height: 110px;
-  background: #0f172a;
+  background: var(--bg-card-subtle);
 }
 .local-card-thumb img {
   width: 100%;
@@ -241,7 +243,7 @@ function formatBytes(bytes: number): string {
 .game-name {
   font-size: 15px;
   font-weight: 600;
-  color: #f8fafc;
+  color: var(--text-main);
   margin-bottom: 4px;
   white-space: nowrap;
   overflow: hidden;
@@ -249,7 +251,7 @@ function formatBytes(bytes: number): string {
 }
 .file-name {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-muted);
   margin-bottom: 12px;
   white-space: nowrap;
   overflow: hidden;
@@ -259,7 +261,7 @@ function formatBytes(bytes: number): string {
   display: flex;
   justify-content: space-between;
   font-size: 11px;
-  color: #64748b;
+  color: var(--text-gray);
   margin-bottom: 14px;
 }
 .card-btns {
@@ -272,7 +274,7 @@ function formatBytes(bytes: number): string {
 }
 .empty-tip {
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-muted);
   margin-top: 6px;
 }
 </style>

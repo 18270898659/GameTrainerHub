@@ -140,6 +140,9 @@ export default {
     langZhCN: '简体中文',
     langZhTW: '繁體中文',
     langEnUS: 'English',
+    sectionTheme: '外觀與主題設定',
+    themeDark: '深色主題',
+    themeLight: '淺色主題',
     autoSync: '原網站自動後台同步',
     autoSyncSwitch: '開啟定期增量同步',
     autoSyncInterval: '每 {hours} 小時檢查一次',
@@ -156,3 +159,4 @@ export default {
     aboutDisclaimer: '免責聲明：本客戶端所索引下載之修改器均來源於原作者官方公開發布入口，僅供單機單人離線娛樂學習研究。嚴禁用於任何多人線上競技作弊，客戶端遵守計算機軟體保護條例與原網訪問禮節。'
   }
 }
+

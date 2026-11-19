@@ -197,7 +197,7 @@ function clickHistory(kw: string) {
 }
 .history-label {
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-muted);
   white-space: nowrap;
 }
 .history-tags {
@@ -208,21 +208,21 @@ function clickHistory(kw: string) {
 }
 .history-tag {
   cursor: pointer;
-  background: rgba(30, 41, 59, 0.7);
-  border-color: rgba(255, 255, 255, 0.1);
-  color: #cbd5e1;
+  background: var(--bg-card);
+  border-color: var(--border-color);
+  color: var(--text-secondary);
   transition: all 0.2s ease;
 }
 .history-tag:hover {
-  border-color: #38bdf8;
-  color: #38bdf8;
+  border-color: var(--accent-cyan);
+  color: var(--accent-cyan);
 }
 .clear-btn {
   font-size: 11px;
-  color: #64748b;
+  color: var(--text-gray);
 }
 .clear-btn:hover {
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 .filter-bar {
   display: flex;
@@ -236,22 +236,23 @@ function clickHistory(kw: string) {
   gap: 16px;
 }
 .result-card {
-  background: rgba(30, 41, 59, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 8px;
   overflow: hidden;
   cursor: pointer;
   transition: all 0.2s ease;
+  box-shadow: var(--card-shadow);
 }
 .result-card:hover {
   transform: translateY(-2px);
-  border-color: #38bdf8;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+  border-color: var(--border-hover);
+  background: var(--bg-card-hover);
 }
 .result-thumb {
   position: relative;
   height: 130px;
-  background: #0f172a;
+  background: var(--bg-card-subtle);
 }
 .result-thumb img {
   width: 100%;
@@ -269,7 +270,7 @@ function clickHistory(kw: string) {
 .result-name-cn {
   font-size: 15px;
   font-weight: 600;
-  color: #f8fafc;
+  color: var(--text-main);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -277,7 +278,7 @@ function clickHistory(kw: string) {
 }
 .result-name-en {
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-gray);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -290,21 +291,21 @@ function clickHistory(kw: string) {
 }
 .source-pill {
   font-size: 10px;
-  color: #38bdf8;
-  background: rgba(56, 189, 248, 0.1);
+  color: var(--accent-cyan);
+  background: var(--accent-tag-bg);
   padding: 2px 6px;
   border-radius: 4px;
 }
 .score-tag {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 .empty-state {
   padding: 40px 0;
 }
 .empty-tip {
   font-size: 12px;
-  color: #64748b;
+  color: var(--text-muted);
   margin-top: 8px;
 }
 .detail-header {
@@ -321,17 +322,17 @@ function clickHistory(kw: string) {
 .detail-title-group h3 {
   margin: 0 0 4px 0;
   font-size: 16px;
-  color: #f8fafc;
+  color: var(--text-main);
 }
 .detail-title-group p {
   margin: 0;
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 .section-sub {
   font-size: 13px;
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--text-primary);
   margin-bottom: 10px;
 }
 .versions-list {
@@ -340,32 +341,32 @@ function clickHistory(kw: string) {
   gap: 10px;
 }
 .version-item {
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
   border-radius: 6px;
   padding: 10px 12px;
 }
 .version-name {
   font-size: 13px;
   font-weight: 600;
-  color: #38bdf8;
+  color: var(--accent-cyan);
   margin-bottom: 4px;
 }
 .version-sub {
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--text-muted);
   margin-bottom: 8px;
 }
 .cheats-box {
-  background: #090d16;
+  background: var(--code-bg);
   padding: 12px;
   border-radius: 6px;
   font-family: monospace;
   font-size: 12px;
-  color: #38bdf8;
+  color: var(--code-text);
   max-height: 240px;
   overflow-y: auto;
   white-space: pre-wrap;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-color);
 }
 </style>

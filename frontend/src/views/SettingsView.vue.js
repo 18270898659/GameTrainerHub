@@ -1,15 +1,17 @@
 /// <reference types="../../node_modules/.vue-global-types/vue_3.5_0_0_0.d.ts" />
 import { ref, onMounted } from 'vue';
 import { ElMessage } from 'element-plus';
-import { QuestionFilled, FolderOpened, FolderAdd } from '@element-plus/icons-vue';
+import { QuestionFilled, FolderOpened, FolderAdd, Moon, Sunny } from '@element-plus/icons-vue';
 import { useAppStore } from '../stores/appStore';
 import { api } from '../api/wails';
 import { t, currentLanguage, setLanguage } from '../i18n';
+import { currentTheme, setTheme } from '../theme';
 const store = useAppStore();
 const form = ref(null);
 const saving = ref(false);
 const selectingDir = ref(false);
 const selectedLanguage = ref(currentLanguage.value);
+const selectedTheme = ref(currentTheme.value);
 onMounted(async () => {
     await store.refreshConfig();
     if (store.config) {
@@ -17,6 +19,10 @@ onMounted(async () => {
         if (store.config.language) {
             selectedLanguage.value = store.config.language;
             setLanguage(store.config.language);
+        }
+        if (store.config.theme) {
+            selectedTheme.value = store.config.theme;
+            setTheme(store.config.theme);
         }
     }
 });
@@ -67,6 +73,16 @@ async function onLanguageChange(val) {
     selectedLanguage.value = lang;
     if (form.value) {
         form.value.language = lang;
+        await saveSettingsSilently();
+    }
+}
+// 主题切换处理 (即时全局响应并持久化)
+async function onThemeChange(val) {
+    const mode = val;
+    setTheme(mode);
+    selectedTheme.value = mode;
+    if (form.value) {
+        form.value.theme = mode;
         await saveSettingsSilently();
     }
 }
@@ -597,32 +613,121 @@ __VLS_143.slots.default;
 var __VLS_143;
 var __VLS_127;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
-    ...{ class: "actions-card" },
+    ...{ class: "settings-card" },
 });
-const __VLS_144 = {}.ElButton;
-/** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
+__VLS_asFunctionalElement(__VLS_intrinsicElements.h3, __VLS_intrinsicElements.h3)({
+    ...{ class: "settings-title" },
+});
+(__VLS_ctx.t('settings.sectionTheme'));
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+    ...{ class: "theme-selector-wrap" },
+});
+const __VLS_144 = {}.ElRadioGroup;
+/** @type {[typeof __VLS_components.ElRadioGroup, typeof __VLS_components.elRadioGroup, typeof __VLS_components.ElRadioGroup, typeof __VLS_components.elRadioGroup, ]} */ ;
 // @ts-ignore
 const __VLS_145 = __VLS_asFunctionalComponent(__VLS_144, new __VLS_144({
-    ...{ 'onClick': {} },
-    type: "primary",
-    size: "large",
-    loading: (__VLS_ctx.saving),
+    ...{ 'onChange': {} },
+    modelValue: (__VLS_ctx.selectedTheme),
+    size: "default",
+    ...{ class: "custom-radio-group" },
 }));
 const __VLS_146 = __VLS_145({
-    ...{ 'onClick': {} },
-    type: "primary",
-    size: "large",
-    loading: (__VLS_ctx.saving),
+    ...{ 'onChange': {} },
+    modelValue: (__VLS_ctx.selectedTheme),
+    size: "default",
+    ...{ class: "custom-radio-group" },
 }, ...__VLS_functionalComponentArgsRest(__VLS_145));
 let __VLS_148;
 let __VLS_149;
 let __VLS_150;
 const __VLS_151 = {
-    onClick: (__VLS_ctx.saveSettings)
+    onChange: (__VLS_ctx.onThemeChange)
 };
 __VLS_147.slots.default;
-(__VLS_ctx.t('settings.saveBtn'));
+const __VLS_152 = {}.ElRadioButton;
+/** @type {[typeof __VLS_components.ElRadioButton, typeof __VLS_components.elRadioButton, typeof __VLS_components.ElRadioButton, typeof __VLS_components.elRadioButton, ]} */ ;
+// @ts-ignore
+const __VLS_153 = __VLS_asFunctionalComponent(__VLS_152, new __VLS_152({
+    value: "dark",
+}));
+const __VLS_154 = __VLS_153({
+    value: "dark",
+}, ...__VLS_functionalComponentArgsRest(__VLS_153));
+__VLS_155.slots.default;
+const __VLS_156 = {}.ElIcon;
+/** @type {[typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, ]} */ ;
+// @ts-ignore
+const __VLS_157 = __VLS_asFunctionalComponent(__VLS_156, new __VLS_156({
+    ...{ class: "theme-btn-icon" },
+}));
+const __VLS_158 = __VLS_157({
+    ...{ class: "theme-btn-icon" },
+}, ...__VLS_functionalComponentArgsRest(__VLS_157));
+__VLS_159.slots.default;
+const __VLS_160 = {}.Moon;
+/** @type {[typeof __VLS_components.Moon, ]} */ ;
+// @ts-ignore
+const __VLS_161 = __VLS_asFunctionalComponent(__VLS_160, new __VLS_160({}));
+const __VLS_162 = __VLS_161({}, ...__VLS_functionalComponentArgsRest(__VLS_161));
+var __VLS_159;
+(__VLS_ctx.t('settings.themeDark'));
+var __VLS_155;
+const __VLS_164 = {}.ElRadioButton;
+/** @type {[typeof __VLS_components.ElRadioButton, typeof __VLS_components.elRadioButton, typeof __VLS_components.ElRadioButton, typeof __VLS_components.elRadioButton, ]} */ ;
+// @ts-ignore
+const __VLS_165 = __VLS_asFunctionalComponent(__VLS_164, new __VLS_164({
+    value: "light",
+}));
+const __VLS_166 = __VLS_165({
+    value: "light",
+}, ...__VLS_functionalComponentArgsRest(__VLS_165));
+__VLS_167.slots.default;
+const __VLS_168 = {}.ElIcon;
+/** @type {[typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, ]} */ ;
+// @ts-ignore
+const __VLS_169 = __VLS_asFunctionalComponent(__VLS_168, new __VLS_168({
+    ...{ class: "theme-btn-icon" },
+}));
+const __VLS_170 = __VLS_169({
+    ...{ class: "theme-btn-icon" },
+}, ...__VLS_functionalComponentArgsRest(__VLS_169));
+__VLS_171.slots.default;
+const __VLS_172 = {}.Sunny;
+/** @type {[typeof __VLS_components.Sunny, ]} */ ;
+// @ts-ignore
+const __VLS_173 = __VLS_asFunctionalComponent(__VLS_172, new __VLS_172({}));
+const __VLS_174 = __VLS_173({}, ...__VLS_functionalComponentArgsRest(__VLS_173));
+var __VLS_171;
+(__VLS_ctx.t('settings.themeLight'));
+var __VLS_167;
 var __VLS_147;
+__VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+    ...{ class: "actions-card" },
+});
+const __VLS_176 = {}.ElButton;
+/** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
+// @ts-ignore
+const __VLS_177 = __VLS_asFunctionalComponent(__VLS_176, new __VLS_176({
+    ...{ 'onClick': {} },
+    type: "primary",
+    size: "large",
+    loading: (__VLS_ctx.saving),
+}));
+const __VLS_178 = __VLS_177({
+    ...{ 'onClick': {} },
+    type: "primary",
+    size: "large",
+    loading: (__VLS_ctx.saving),
+}, ...__VLS_functionalComponentArgsRest(__VLS_177));
+let __VLS_180;
+let __VLS_181;
+let __VLS_182;
+const __VLS_183 = {
+    onClick: (__VLS_ctx.saveSettings)
+};
+__VLS_179.slots.default;
+(__VLS_ctx.t('settings.saveBtn'));
+var __VLS_179;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "settings-card about-card" },
 });
@@ -680,6 +785,12 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)(
 /** @type {__VLS_StyleScopedClasses['settings-title']} */ ;
 /** @type {__VLS_StyleScopedClasses['language-selector-wrap']} */ ;
 /** @type {__VLS_StyleScopedClasses['custom-radio-group']} */ ;
+/** @type {__VLS_StyleScopedClasses['settings-card']} */ ;
+/** @type {__VLS_StyleScopedClasses['settings-title']} */ ;
+/** @type {__VLS_StyleScopedClasses['theme-selector-wrap']} */ ;
+/** @type {__VLS_StyleScopedClasses['custom-radio-group']} */ ;
+/** @type {__VLS_StyleScopedClasses['theme-btn-icon']} */ ;
+/** @type {__VLS_StyleScopedClasses['theme-btn-icon']} */ ;
 /** @type {__VLS_StyleScopedClasses['actions-card']} */ ;
 /** @type {__VLS_StyleScopedClasses['settings-card']} */ ;
 /** @type {__VLS_StyleScopedClasses['about-card']} */ ;
@@ -695,15 +806,19 @@ const __VLS_self = (await import('vue')).defineComponent({
             QuestionFilled: QuestionFilled,
             FolderOpened: FolderOpened,
             FolderAdd: FolderAdd,
+            Moon: Moon,
+            Sunny: Sunny,
             t: t,
             form: form,
             saving: saving,
             selectingDir: selectingDir,
             selectedLanguage: selectedLanguage,
+            selectedTheme: selectedTheme,
             openDownloadFolder: openDownloadFolder,
             changeDownloadDirectory: changeDownloadDirectory,
             onSliderChange: onSliderChange,
             onLanguageChange: onLanguageChange,
+            onThemeChange: onThemeChange,
             saveSettingsSilently: saveSettingsSilently,
             saveSettings: saveSettings,
         };

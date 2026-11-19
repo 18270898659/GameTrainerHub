@@ -60,6 +60,7 @@ debugger; /* PartiallyEnd: #3632/scriptSetup.vue */
 const __VLS_ctx = {};
 let __VLS_components;
 let __VLS_directives;
+/** @type {__VLS_StyleScopedClasses['hero-banner']} */ ;
 /** @type {__VLS_StyleScopedClasses['trainer-card']} */ ;
 /** @type {__VLS_StyleScopedClasses['card-thumb']} */ ;
 // CSS variable injection 
