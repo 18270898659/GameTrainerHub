@@ -173,10 +173,12 @@ var (
 	reTitle       = regexp.MustCompile(`(?s)<h2[^>]*class="[^"]*post-title[^"]*"[^>]*>\s*<a\s+href="([^"]+)"[^>]*>([\s\S]*?)</a>`)
 	reThumb       = regexp.MustCompile(`<div class="post-details-thumb">\s*<a[^>]*>\s*<img[^>]*src="([^"]+)"`)
 	reDateParts   = regexp.MustCompile(`(?s)<div class="post-details-day">(\d+)</div>\s*<div class="post-details-month">([A-Za-z]+)</div>\s*<div class="post-details-year">(\d+)</div>`)
-	reDetailTitle = regexp.MustCompile(`(?s)<h1[^>]*class="[^"]*entry-title[^"]*"[^>]*>([\s\S]*?)</h1>`)
+	reDetailTitle = regexp.MustCompile(`(?si)<h1[^>]*>([\s\S]*?)</h1>`)
 	reDownloads   = regexp.MustCompile(`(?s)<a\s+[^>]*href="(https?://flingtrainer\.com/downloads/[^"]+)"[^>]*>([\s\S]*?)</a>`)
 	reCleanHTML   = regexp.MustCompile(`<[^>]+>`)
 	reCatalogItem = regexp.MustCompile(`(?s)<a\s+href="(https?://flingtrainer\.com/trainer/[^"/]+/?)"[^>]*>\s*([\s\S]*?)\s*</a>`)
+	reScript      = regexp.MustCompile(`(?si)<script[^>]*>[\s\S]*?</script>`)
+	reStyle       = regexp.MustCompile(`(?si)<style[^>]*>[\s\S]*?</style>`)
 )
 
 func (a *FlingAdapter) ParseSearchResults(html string) ([]*model.SearchResult, error) {
@@ -258,12 +260,34 @@ func (a *FlingAdapter) ParseCatalog(html string) ([]*source.CatalogItem, error) 
 }
 
 func (a *FlingAdapter) ParseDetail(detailURL string, html string) (*model.Trainer, []*model.TrainerVersion, error) {
-	// 提取标题
+	// 提取标题，优先 h1，若缺失则从 title 或 URL 回退
+	var rawTitle string
 	titleMatch := reDetailTitle.FindStringSubmatch(html)
-	if len(titleMatch) < 2 {
+	if len(titleMatch) >= 2 {
+		rawTitle = cleanHTML(titleMatch[1])
+	}
+	if rawTitle == "" {
+		reHTMLTitle := regexp.MustCompile(`(?si)<title>([\s\S]*?)</title>`)
+		tMatch := reHTMLTitle.FindStringSubmatch(html)
+		if len(tMatch) >= 2 {
+			titleText := cleanHTML(tMatch[1])
+			if idx := strings.Index(titleText, " - "); idx != -1 {
+				titleText = strings.TrimSpace(titleText[:idx])
+			}
+			rawTitle = titleText
+		}
+	}
+	if rawTitle == "" {
+		urlParts := strings.Split(strings.Trim(detailURL, "/"), "/")
+		if len(urlParts) > 0 {
+			slug := urlParts[len(urlParts)-1]
+			slug = strings.TrimSuffix(slug, "-trainer")
+			rawTitle = strings.Title(strings.ReplaceAll(slug, "-", " ")) + " Trainer"
+		}
+	}
+	if rawTitle == "" {
 		return nil, nil, fmt.Errorf("failed to parse entry title in %s", detailURL)
 	}
-	rawTitle := cleanHTML(titleMatch[1])
 	gameName := strings.TrimSuffix(rawTitle, " Trainer")
 
 	// 提取外部ID
@@ -312,29 +336,38 @@ func (a *FlingAdapter) ParseDetail(detailURL string, html string) (*model.Traine
 		trainer.LatestVersion = versions[0].VersionName
 	}
 
-	// 提取修改项说明内容
-	contentIdx := strings.Index(html, `class="entry-content`)
+	// 提取修改项说明内容 (支持 class="entry" 与 class="entry-content")
+	contentIdx := strings.Index(html, `class="entry"`)
+	if contentIdx == -1 {
+		contentIdx = strings.Index(html, `class="entry-content`)
+	}
 	if contentIdx != -1 {
 		endIdx := strings.Index(html[contentIdx:], `</div><!--/.entry`)
 		if endIdx != -1 {
 			rawContent := html[contentIdx : contentIdx+endIdx]
 			features := cleanHTML(rawContent)
-			if len(versions) > 0 {
-				versions[0].FeaturesText = strings.TrimSpace(features)
+			featuresText := strings.TrimSpace(features)
+			for _, v := range versions {
+				v.FeaturesText = featuresText
 			}
 		}
 	}
 
+	trainer.Versions = versions
 	return trainer, versions, nil
 }
 
 // 辅助清洗方法
 func cleanHTML(s string) string {
+	s = reScript.ReplaceAllString(s, "")
+	s = reStyle.ReplaceAllString(s, "")
 	s = reCleanHTML.ReplaceAllString(s, "")
 	s = strings.ReplaceAll(s, "&nbsp;", " ")
 	s = strings.ReplaceAll(s, "&amp;", "&")
 	s = strings.ReplaceAll(s, "&#8211;", "-")
 	s = strings.ReplaceAll(s, "&#8217;", "'")
+	s = strings.ReplaceAll(s, "&#038;", "&")
+	s = strings.ReplaceAll(s, "&#046;", ".")
 	return strings.TrimSpace(s)
 }
 

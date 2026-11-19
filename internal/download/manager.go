@@ -3,9 +3,11 @@ package download
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -44,12 +46,25 @@ func NewDownloadManager(
 
 	ctx, cancel := context.WithCancel(context.Background())
 
+	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   15 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   15 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
+	}
+
 	dm := &DownloadManager{
 		dlRepo:        dlRepo,
 		trainerRepo:   trainerRepo,
 		localRepo:     localRepo,
 		adapter:       adapter,
-		httpClient:    &http.Client{Timeout: 60 * time.Second},
+		httpClient:    &http.Client{Transport: transport, Timeout: 0},
 		maxConcurrent: maxConcurrent,
 		activeTasks:   make(map[int64]context.CancelFunc),
 		taskQueue:     make(chan int64, 100),
@@ -115,8 +130,20 @@ func (m *DownloadManager) CreateTask(ctx context.Context, versionID int64, downl
 	}
 	savePath := filepath.Join(downloadDir, fileName)
 
+	gameName := ""
+	trainer, _ := m.trainerRepo.GetTrainerByID(ctx, version.TrainerID)
+	if trainer != nil {
+		if trainer.TitleCN != "" {
+			gameName = trainer.TitleCN
+		} else {
+			gameName = trainer.TitleEN
+		}
+	}
+
 	task := &model.DownloadTask{
 		VersionID:       versionID,
+		GameName:        gameName,
+		VersionName:     version.VersionName,
 		FileName:        fileName,
 		SavePath:        savePath,
 		TotalBytes:      version.FileSize,
@@ -165,6 +192,7 @@ func (m *DownloadManager) ResumeTask(taskID int64) error {
 	}
 	task.Status = model.DownloadStatusPending
 	task.ErrorMsg = ""
+	task.Retries = 0
 	_ = m.dlRepo.UpdateTask(ctx, task)
 
 	m.taskQueue <- task.ID
@@ -223,25 +251,41 @@ func (m *DownloadManager) processTask(taskID int64) {
 		return
 	}
 
+	// 查找关联修改器以获取真实 DetailURL 作为 Referer (解决防盗链 403 异常)
+	var referer string
+	trainer, _ := m.trainerRepo.GetTrainerByID(ctx, version.TrainerID)
+	if trainer != nil && trainer.DetailURL != "" {
+		referer = trainer.DetailURL
+	} else if strings.Contains(version.DownloadURL, "flingtrainer.com") {
+		referer = "https://flingtrainer.com/"
+	}
+
 	// 解析真实下载直链
 	realDownloadURL := version.DownloadURL
 	if m.adapter != nil {
-		dlInfo, resErr := m.adapter.ResolveDownload(ctx, version.DownloadURL, "")
+		dlInfo, resErr := m.adapter.ResolveDownload(ctx, version.DownloadURL, referer)
 		if resErr == nil && dlInfo != nil && dlInfo.FinalURL != "" {
 			realDownloadURL = dlInfo.FinalURL
 			if dlInfo.FileSize > 0 && task.TotalBytes == 0 {
 				task.TotalBytes = dlInfo.FileSize
 			}
+			if dlInfo.FileName != "" && task.FileName != dlInfo.FileName {
+				task.FileName = dlInfo.FileName
+				task.SavePath = filepath.Join(filepath.Dir(task.SavePath), dlInfo.FileName)
+			}
+		} else if resErr != nil {
+			logger.Warn("Failed to resolve download URL, using direct URL", "download_url", version.DownloadURL, "err", resErr)
 		}
 	}
 
 	task.Status = model.DownloadStatusDownloading
+	task.ErrorMsg = ""
 	_ = m.dlRepo.UpdateTask(ctx, task)
 	m.notifyListeners(task)
 
 	// 创建并执行 Worker
 	lastDBSave := time.Now()
-	worker := NewWorker(m.httpClient, task, realDownloadURL, "", func(t *model.DownloadTask) {
+	worker := NewWorker(m.httpClient, task, realDownloadURL, referer, func(t *model.DownloadTask) {
 		m.notifyListeners(t)
 		// 每隔 1 秒持久化一次进度到 SQLite
 		if time.Since(lastDBSave) >= time.Second {
@@ -255,9 +299,27 @@ func (m *DownloadManager) processTask(taskID int64) {
 		if ctx.Err() == context.Canceled {
 			task.Status = model.DownloadStatusPaused
 		} else {
+			const maxRetries = 3
+			if task.Retries < maxRetries {
+				task.Retries++
+				task.Status = model.DownloadStatusRetrying
+				task.ErrorMsg = fmt.Sprintf("下载遇到异常: %v (正在进行第 %d/%d 次重试...)", err, task.Retries, maxRetries)
+				logger.Warn("Download task failed, scheduling auto retry", "task_id", task.ID, "retry", task.Retries, "err", err)
+				_ = m.dlRepo.UpdateTask(context.Background(), task)
+				m.notifyListeners(task)
+
+				// 异步退避重试 (500ms, 1s, 2s)
+				go func(tID int64, attempt int) {
+					backoff := time.Duration(1<<uint(attempt-1)) * 500 * time.Millisecond
+					time.Sleep(backoff)
+					m.taskQueue <- tID
+				}(task.ID, task.Retries)
+				return
+			}
+
 			task.Status = model.DownloadStatusFailed
-			task.ErrorMsg = err.Error()
-			logger.Error("Download task failed", "task_id", task.ID, "err", err)
+			task.ErrorMsg = fmt.Sprintf("下载失败: %v", err)
+			logger.Error("Download task failed permanently after max retries", "task_id", task.ID, "err", err)
 		}
 		_ = m.dlRepo.UpdateTask(context.Background(), task)
 		m.notifyListeners(task)
@@ -287,7 +349,7 @@ func (m *DownloadManager) processTask(taskID int64) {
 	_ = m.dlRepo.AddHistory(context.Background(), hist)
 
 	// 2. 自动注册入本地修改器库 (local_trainers)
-	trainer, _ := m.trainerRepo.GetTrainerByID(context.Background(), version.TrainerID)
+	trainer, _ = m.trainerRepo.GetTrainerByID(context.Background(), version.TrainerID)
 	var gameID int64
 	if trainer != nil {
 		gameID = trainer.GameID

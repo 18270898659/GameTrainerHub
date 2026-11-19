@@ -6,6 +6,7 @@ import "time"
 const (
 	DownloadStatusPending     = "pending"
 	DownloadStatusDownloading = "downloading"
+	DownloadStatusRetrying    = "retrying"
 	DownloadStatusPaused      = "paused"
 	DownloadStatusCompleted   = "completed"
 	DownloadStatusFailed      = "failed"

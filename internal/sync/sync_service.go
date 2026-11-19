@@ -221,9 +221,22 @@ func (s *SyncService) SyncLatest(ctx context.Context, pages int) (*model.SyncRec
 				continue
 			}
 
-			py := s.translator.ToPinyin(gameNameCN)
-			initials := s.translator.ToPinyinInitials(gameNameCN)
-			_ = s.ftsRepo.IndexGame(ctx, upsertedGame.ID, upsertedGame.NameEN, upsertedGame.NameCN, "", py, initials)
+			// 维护 FTS 索引 (包含别名与拼音全拼、声母)
+			aliases := s.translator.TranslateEnglishToChinese(upsertedGame.NameEN)
+			aliasStr := strings.Join(aliases, " ")
+			var pinyins []string
+			var initialsList []string
+			if upsertedGame.NameCN != "" {
+				pinyins = append(pinyins, s.translator.ToPinyin(upsertedGame.NameCN))
+				initialsList = append(initialsList, s.translator.ToPinyinInitials(upsertedGame.NameCN))
+			}
+			for _, al := range aliases {
+				pinyins = append(pinyins, s.translator.ToPinyin(al))
+				initialsList = append(initialsList, s.translator.ToPinyinInitials(al))
+			}
+			py := strings.Join(pinyins, " ")
+			initials := strings.Join(initialsList, " ")
+			_ = s.ftsRepo.IndexGame(ctx, upsertedGame.ID, upsertedGame.NameEN, upsertedGame.NameCN, aliasStr, py, initials)
 
 			// 获取并更新版本详情
 			detailTrainer, versions, err := s.adapter.GetDetail(ctx, item.DetailURL)
@@ -242,6 +255,12 @@ func (s *SyncService) SyncLatest(ctx context.Context, pages int) (*model.SyncRec
 	_ = s.syncRepo.UpdateRecord(ctx, rec)
 
 	return rec, nil
+}
+
+// MarkTrainerTakedown 标记指定来源的修改器已下架
+func (s *SyncService) MarkTrainerTakedown(ctx context.Context, externalID string) error {
+	logger.Info("Marking trainer as delisted/takedown", "source", s.adapter.ID(), "external_id", externalID)
+	return s.trainerRepo.MarkAsDeleted(ctx, s.adapter.ID(), externalID)
 }
 
 // StartPeriodicSync 启动后台定期增量同步

@@ -15,6 +15,8 @@ import (
 
 	"GameTrainerHub/internal/logger"
 	"GameTrainerHub/internal/model"
+
+	"golang.org/x/sys/windows"
 )
 
 type ProgressCallback func(task *model.DownloadTask)
@@ -29,7 +31,16 @@ type Worker struct {
 
 func NewWorker(client *http.Client, task *model.DownloadTask, downloadURL string, referer string, cb ProgressCallback) *Worker {
 	if client == nil {
-		client = &http.Client{Timeout: 30 * time.Second}
+		client = &http.Client{
+			Transport: &http.Transport{
+				ResponseHeaderTimeout: 30 * time.Second,
+				TLSHandshakeTimeout:   15 * time.Second,
+			},
+			Timeout: 0,
+		}
+	}
+	if referer == "" && strings.Contains(downloadURL, "flingtrainer.com") {
+		referer = "https://flingtrainer.com/"
 	}
 	return &Worker{
 		client:           client,
@@ -66,6 +77,9 @@ func (w *Worker) Execute(ctx context.Context) (*DownloadResult, error) {
 	}
 	if totalSize > 0 {
 		w.task.TotalBytes = totalSize
+		if err := CheckDiskSpace(filepath.Dir(tmpPath), totalSize-localOffset); err != nil {
+			return nil, err
+		}
 	}
 
 	// 3. 构建 GET 请求（若支持 Range 且已有部分文件，则请求 Range）
@@ -307,5 +321,30 @@ func calculateSHA256(filePath string) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// CheckDiskSpace 校验下载目标驱动器剩余可用磁盘空间
+func CheckDiskSpace(dir string, requiredBytes int64) error {
+	if requiredBytes <= 0 {
+		return nil
+	}
+	dirClean := filepath.Clean(dir)
+	vol := filepath.VolumeName(dirClean)
+	if vol == "" {
+		vol = "."
+	}
+	pathPtr, err := windows.UTF16PtrFromString(vol + `\`)
+	if err != nil {
+		return nil
+	}
+	var freeBytesAvailable, totalNumberOfBytes, totalNumberOfFreeBytes uint64
+	err = windows.GetDiskFreeSpaceEx(pathPtr, &freeBytesAvailable, &totalNumberOfBytes, &totalNumberOfFreeBytes)
+	if err != nil {
+		return nil
+	}
+	if freeBytesAvailable < uint64(requiredBytes) {
+		return fmt.Errorf("insufficient disk space: available %d bytes, required %d bytes", freeBytesAvailable, requiredBytes)
+	}
+	return nil
 }
 

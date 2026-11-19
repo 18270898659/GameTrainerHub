@@ -94,3 +94,76 @@ func TestLauncherSecurityCardAndLaunch(t *testing.T) {
 		t.Fatal("expected error for non-existent file, got nil")
 	}
 }
+
+func TestLauncherDuplicateLaunchAndStop(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gth_launcher_dup_*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	dbPath := filepath.Join(tempDir, "test.db")
+	db, err := database.Open(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	gameRepo := repository.NewGameRepository(db)
+	localRepo := repository.NewLocalTrainerRepository(db)
+
+	game := &model.Game{Slug: "test-game", NameEN: "Test Game", NameCN: "测试游戏"}
+	_ = gameRepo.Create(ctx, game)
+
+	// 使用系统的 cmd.exe 复制为一个测试用修改器可执行文件
+	systemCmd := filepath.Join(os.Getenv("WINDIR"), "System32", "cmd.exe")
+	if _, err := os.Stat(systemCmd); err != nil {
+		t.Skip("cmd.exe not found in Windows directory")
+	}
+
+	mockExe := filepath.Join(tempDir, "dummy_trainer.exe")
+	cmdBytes, err := os.ReadFile(systemCmd)
+	if err != nil {
+		t.Fatalf("failed to read cmd.exe: %v", err)
+	}
+	if err := os.WriteFile(mockExe, cmdBytes, 0755); err != nil {
+		t.Fatalf("failed to write dummy_trainer.exe: %v", err)
+	}
+
+	lt := &model.LocalTrainer{
+		GameID:     game.ID,
+		FilePath:   mockExe,
+		FileSize:   int64(len(cmdBytes)),
+		SourceName: "FLiNG",
+	}
+	_ = localRepo.Create(ctx, lt)
+
+	launcher := NewLauncher(localRepo, gameRepo)
+
+	// 1. 初次启动
+	if err := launcher.LaunchExecutable(ctx, lt.ID, false); err != nil {
+		t.Fatalf("failed to launch executable: %v", err)
+	}
+
+	// 2. 验证运行状态被追踪
+	if !launcher.IsTrainerRunning(lt.ID) {
+		t.Errorf("expected trainer to be marked running")
+	}
+
+	// 3. 验证重复启动被有效拦截
+	dupErr := launcher.LaunchExecutable(ctx, lt.ID, false)
+	if dupErr == nil {
+		t.Errorf("expected duplicate launch to return error, got nil")
+	} else if !strings.Contains(dupErr.Error(), "already running") {
+		t.Errorf("expected error message to mention 'already running', got: %v", dupErr)
+	}
+
+	// 4. 停止修改器并验证状态清理
+	if err := launcher.StopTrainer(lt.ID); err != nil {
+		t.Fatalf("failed to stop trainer: %v", err)
+	}
+	if launcher.IsTrainerRunning(lt.ID) {
+		t.Errorf("expected trainer to no longer be marked running after stop")
+	}
+}

@@ -99,5 +99,24 @@ func TestSyncServiceCatalogAndLatest(t *testing.T) {
 	if recLatest.ItemsUpdated != 1 {
 		t.Errorf("expected 1 item updated, got %d", recLatest.ItemsUpdated)
 	}
+
+	// 4. 验证 SyncLatest 中维护的 FTS 别名和拼音索引可正常召回
+	ftsHits, err := ftsRepo.Search(ctx, "saibopengke", 10)
+	if err != nil || len(ftsHits) == 0 {
+		t.Fatalf("expected fts search for pinyin 'saibopengke' to hit after SyncLatest, err: %v", err)
+	}
+
+	// 5. 验证资源下架标记 (MarkTrainerTakedown)
+	err = syncSvc.MarkTrainerTakedown(ctx, "test-tr")
+	if err != nil {
+		t.Fatalf("MarkTrainerTakedown failed: %v", err)
+	}
+	tr, err := trainerRepo.GetTrainerByExternalID(ctx, "fling", "test-tr")
+	if err != nil || tr == nil {
+		t.Fatalf("failed to query takedown trainer: %v", err)
+	}
+	if !tr.IsDeleted {
+		t.Errorf("expected trainer is_deleted to be true after takedown, got %v", tr.IsDeleted)
+	}
 }
 

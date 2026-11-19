@@ -13,7 +13,7 @@ export const useAppStore = defineStore('app', () => {
 
   // 计算属性：当前活跃下载数
   const activeDownloadsCount = computed(() => {
-    return downloadTasks.value.filter(t => t.status === 'downloading' || t.status === 'pending').length
+    return downloadTasks.value.filter(t => t.status === 'downloading' || t.status === 'pending' || t.status === 'retrying').length
   })
 
   // 刷新下载任务列表

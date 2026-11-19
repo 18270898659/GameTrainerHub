@@ -101,3 +101,4 @@ func TestCheckUpdateAndPackageVerification(t *testing.T) {
 		t.Fatal("expected failure on file size mismatch, got valid")
 	}
 }
+

@@ -144,3 +144,4 @@ func CompareVersions(v1, v2 string) int {
 func (s *UpdateService) GetPackageTempPath(cacheDir string, version string) string {
 	return filepath.Join(cacheDir, fmt.Sprintf("GameTrainerHub-Setup-%s.exe", version))
 }
+

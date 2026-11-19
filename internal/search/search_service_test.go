@@ -163,3 +163,61 @@ func TestSearchServiceHybridSearch(t *testing.T) {
 	}
 }
 
+func TestSearchServiceMultiSourceAggregation(t *testing.T) {
+	svc, _, cleanup := setupSearchTest(t)
+	defer cleanup()
+
+	ctx := context.Background()
+
+	// 注册 2 个不同的数据源适配器
+	adpFling := &MockAdapter{
+		id:   "fling",
+		name: "FLiNG Trainer",
+		mockItems: []*model.SearchResult{
+			{
+				Slug:         "sekiro",
+				GameNameEN:   "Sekiro: Shadows Die Twice",
+				TrainerTitle: "Sekiro FLiNG Trainer v1.06",
+				DetailURL:    "https://flingtrainer.com/trainer/sekiro/",
+				SourceID:     "fling",
+				IsOnlineOnly: true,
+			},
+		},
+	}
+	adpWeMod := &MockAdapter{
+		id:   "wemod",
+		name: "WeMod",
+		mockItems: []*model.SearchResult{
+			{
+				Slug:         "sekiro",
+				GameNameEN:   "Sekiro: Shadows Die Twice",
+				TrainerTitle: "Sekiro WeMod Trainer",
+				DetailURL:    "https://wemod.com/cheats/sekiro",
+				SourceID:     "wemod",
+				IsOnlineOnly: true,
+			},
+		},
+	}
+
+	svc.RegisterAdapter(adpFling)
+	svc.RegisterAdapter(adpWeMod)
+
+	// 搜索 "sekiro"，两个数据源的修改器都应被检索出，不会因 slug 相同而被丢弃
+	results, err := svc.Search(ctx, &model.SearchFilter{Query: "sekiro", Page: 1, PageSize: 10})
+	if err != nil {
+		t.Fatalf("Search failed: %v", err)
+	}
+
+	if len(results) != 2 {
+		t.Fatalf("expected 2 results from 2 sources for sekiro, got %d", len(results))
+	}
+
+	sources := make(map[string]bool)
+	for _, res := range results {
+		sources[res.SourceID] = true
+	}
+	if !sources["fling"] || !sources["wemod"] {
+		t.Errorf("expected both fling and wemod sources, got: %+v", sources)
+	}
+}
+

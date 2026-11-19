@@ -5,6 +5,7 @@ import { ElMessage, ElMessageBox } from 'element-plus';
 import { useAppStore } from '../stores/appStore';
 import { api } from '../api/wails';
 import SecurityModal from '../components/SecurityModal.vue';
+defineOptions({ name: 'LibraryView' });
 const store = useAppStore();
 const scanningSteam = ref(false);
 const securityModalRef = ref(null);

@@ -120,10 +120,21 @@ func TestDownloadFailureAndRetryScenarios(t *testing.T) {
 		SavePath: lockedFile,
 	}
 	workerLocked := NewWorker(validServer.Client(), taskLocked, validServer.URL, "", nil)
-	// 在 Windows 下当文件被另一个句柄以非共享方式打开时会报错
-	_ = lockHandle
-	lockHandle.Close() // 清理释放
 	_ = workerLocked
+	_ = lockHandle.Close()
+
+	// 5. 测试超大体积触发磁盘空间不足检测 (Disk Space Pre-check)
+	hugeSize := int64(100 * 1024 * 1024 * 1024 * 1024) // 100 TB
+	errDisk := CheckDiskSpace(tempDir, hugeSize)
+	if errDisk == nil {
+		t.Fatal("expected insufficient disk space error for 100TB, got nil")
+	}
+
+	// 验证合理体积空间检测通过
+	errNormalDisk := CheckDiskSpace(tempDir, 1024*1024)
+	if errNormalDisk != nil {
+		t.Errorf("expected normal disk check to pass, got: %v", errNormalDisk)
+	}
 }
 
 func TestTaskRecoveryAndConcurrencyStress(t *testing.T) {
@@ -247,5 +258,192 @@ func TestTaskRecoveryAndConcurrencyStress(t *testing.T) {
 		}
 	case <-time.After(5 * time.Second):
 		t.Fatal("timeout waiting for concurrent download task to complete")
+	}
+}
+
+func TestDownloadAutoRetryOnFailure(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gth_retry_test_*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	dbPath := filepath.Join(tempDir, "test.db")
+	db, err := database.Open(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open database: %v", err)
+	}
+	defer db.Close()
+
+	ctx := context.Background()
+	gameRepo := repository.NewGameRepository(db)
+	dlRepo := repository.NewDownloadRepository(db)
+	trainerRepo := repository.NewTrainerRepository(db)
+	localRepo := repository.NewLocalTrainerRepository(db)
+
+	game := &model.Game{Slug: "retry-game", NameEN: "Retry Game", NameCN: "重试游戏"}
+	_ = gameRepo.Create(ctx, game)
+	tr := &model.Trainer{GameID: game.ID, SourceID: "fling", ExternalID: "retry_tr", TitleEN: "Retry Trainer", TitleCN: "重试修改器"}
+	_ = trainerRepo.CreateTrainer(ctx, tr)
+
+	var getCount int
+	var countMu sync.Mutex
+	payload := []byte("RETRY_SUCCESS_PAYLOAD")
+
+	retryServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodHead {
+			w.Header().Set("Accept-Ranges", "bytes")
+			w.Header().Set("Content-Length", fmt.Sprintf("%d", len(payload)))
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		countMu.Lock()
+		getCount++
+		current := getCount
+		countMu.Unlock()
+
+		if current == 1 {
+			// 第一次 GET 下载请求返回 500 模拟瞬态传输故障
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Accept-Ranges", "bytes")
+		w.Header().Set("Content-Length", fmt.Sprintf("%d", len(payload)))
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(payload)
+	}))
+	defer retryServer.Close()
+
+	version := &model.TrainerVersion{
+		TrainerID:   tr.ID,
+		VersionName: "v1.0",
+		DownloadURL: retryServer.URL,
+		FileSize:    int64(len(payload)),
+		FileName:    "retry_file.bin",
+	}
+	_ = trainerRepo.CreateVersion(ctx, version)
+
+	dm := NewDownloadManager(dlRepo, trainerRepo, localRepo, nil, 1)
+	defer dm.Close()
+
+	var wg sync.WaitGroup
+	var doneOnce sync.Once
+	wg.Add(1)
+
+	dm.AddListener(func(task *model.DownloadTask) {
+		if task.Status == model.DownloadStatusCompleted {
+			doneOnce.Do(func() {
+				wg.Done()
+			})
+		}
+	})
+
+	task, err := dm.CreateTask(ctx, version.ID, filepath.Join(tempDir, "downloads"))
+	if err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+
+	doneChan := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(doneChan)
+	}()
+
+	select {
+	case <-doneChan:
+		// 验证重试成功，且 Retries 计数为 1
+		updatedTask, err := dlRepo.GetTaskByID(ctx, task.ID)
+		if err != nil {
+			t.Fatalf("failed to query updated task: %v", err)
+		}
+		if updatedTask.Retries < 1 {
+			t.Errorf("expected Retries >= 1, got %d", updatedTask.Retries)
+		}
+		if updatedTask.Status != model.DownloadStatusCompleted {
+			t.Errorf("expected completed status, got %s", updatedTask.Status)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("timeout waiting for auto-retry download to succeed")
+	}
+}
+
+func TestProbeLiveFLiNGDownload(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gth_probe_dl_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	dlURL := "https://flingtrainer.com/downloads/J0ZX9_hiI3QYHi9EG5A7vw,,"
+
+	task := &model.DownloadTask{
+		FileName: "test_bmw.zip",
+		SavePath: filepath.Join(tempDir, "test_bmw.zip"),
+	}
+
+	worker := NewWorker(client, task, dlURL, "https://flingtrainer.com/trainer/black-myth-wukong-trainer/", func(t *model.DownloadTask) {
+		// progress
+	})
+
+	res, err := worker.Execute(context.Background())
+	if err != nil {
+		t.Fatalf("Worker.Execute failed! Error: %v, Task status: %s, ErrorMsg: %s", err, task.Status, task.ErrorMsg)
+	}
+	t.Logf("Worker.Execute succeeded! Res: %+v", res)
+}
+
+func TestProbeLiveFLiNGEmptyReferer(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gth_probe_empty_ref_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	dlURL := "https://flingtrainer.com/downloads/J0ZX9_hiI3QYHi9EG5A7vw,,"
+
+	task := &model.DownloadTask{
+		FileName: "test_empty_ref.zip",
+		SavePath: filepath.Join(tempDir, "test_empty_ref.zip"),
+	}
+
+	worker := NewWorker(client, task, dlURL, "", func(t *model.DownloadTask) {})
+
+	res, err := worker.Execute(context.Background())
+	if err != nil {
+		t.Fatalf("Expected fallback referer to succeed, got: %v", err)
+	}
+	if res == nil || res.FileSize <= 0 {
+		t.Fatalf("Expected valid download result, got: %+v", res)
+	}
+	t.Logf("Empty referer auto-fallback result: res=%v, task_status=%s", res, task.Status)
+}
+
+func TestDownloadResolvedBMWURL(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gth_test_resolved_*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	client := &http.Client{Timeout: 30 * time.Second}
+	dlURL := "https://flingtrainer.com/wp-content/uploads/trainer-files/2024/08/Black.Myth.Wukong.v1.0-v1.0.20.Plus.44.Trainer-FLiNG.zip/Black%20Myth%20Wukong%20v1.0-v1.0.20%20Plus%2044%20Trainer.exe"
+
+	task := &model.DownloadTask{
+		FileName: "test_bmw_resolved.exe",
+		SavePath: filepath.Join(tempDir, "test_bmw_resolved.exe"),
+	}
+
+	worker := NewWorker(client, task, dlURL, "https://flingtrainer.com/", func(dt *model.DownloadTask) {
+		t.Logf("Progress: %.1f%%, downloaded: %d, total: %d", dt.Progress, dt.DownloadedBytes, dt.TotalBytes)
+	})
+
+	res, err := worker.Execute(context.Background())
+	t.Logf("Resolved URL Download: res=%v, err=%v, task_status=%s, task_err=%s", res, err, task.Status, task.ErrorMsg)
+	if err != nil {
+		t.Fatalf("Download failed: %v", err)
 	}
 }

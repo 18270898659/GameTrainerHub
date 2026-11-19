@@ -76,7 +76,7 @@ export interface DownloadTask {
   save_path: string
   total_bytes: number
   downloaded_bytes: number
-  status: 'pending' | 'downloading' | 'paused' | 'completed' | 'failed'
+  status: 'pending' | 'downloading' | 'paused' | 'completed' | 'failed' | 'retrying'
   speed_bytes_per_sec: number
   progress: number
   error_msg: string

@@ -152,3 +152,53 @@ func TestLiveFLiNGSearch(t *testing.T) {
 	}
 }
 
+func TestLiveBlackMythWukongGetDetail(t *testing.T) {
+	client, err := source.NewHttpClient("", 500)
+	if err != nil {
+		t.Skip("failed to create http client")
+	}
+
+	adapter := NewFlingAdapter(client)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	detailURL := "https://flingtrainer.com/trainer/black-myth-wukong-trainer/"
+	trainer, versions, err := adapter.GetDetail(ctx, detailURL)
+	if err != nil {
+		t.Logf("Live network fetch skipped: %v", err)
+		return
+	}
+
+	if trainer == nil {
+		t.Fatal("expected trainer not to be nil")
+	}
+	if trainer.TitleEN != "Black Myth: Wukong Trainer" {
+		t.Errorf("expected 'Black Myth: Wukong Trainer', got '%s'", trainer.TitleEN)
+	}
+	if len(versions) == 0 {
+		t.Fatal("expected at least 1 version for Black Myth: Wukong")
+	}
+	t.Logf("Successfully fetched Black Myth: Wukong with %d versions. Latest: %s", len(versions), versions[0].VersionName)
+	if !strings.Contains(versions[0].FeaturesText, "God Mode") {
+		t.Errorf("expected features to contain 'God Mode', got snippet: %s", versions[0].FeaturesText[:min(100, len(versions[0].FeaturesText))])
+	}
+}
+
+func TestResolveDownloadBMW(t *testing.T) {
+	adapter := NewFlingAdapter(nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+
+	dlURL := "https://flingtrainer.com/downloads/J0ZX9_hiI3QYHi9EG5A7vw,,"
+	start := time.Now()
+	info, err := adapter.ResolveDownload(ctx, dlURL, "https://flingtrainer.com/trainer/black-myth-wukong-trainer/")
+	dur := time.Since(start)
+	if err != nil {
+		t.Fatalf("ResolveDownload failed: %v", err)
+	}
+	if info == nil || info.FinalURL == "" {
+		t.Fatalf("expected non-empty FinalURL")
+	}
+	t.Logf("ResolveDownload completed in %v, finalURL: %s", dur, info.FinalURL)
+}
+

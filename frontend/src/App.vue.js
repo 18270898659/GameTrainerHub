@@ -220,10 +220,31 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
     ...{ class: "page-container" },
 });
 const __VLS_60 = {}.RouterView;
-/** @type {[typeof __VLS_components.RouterView, typeof __VLS_components.routerView, ]} */ ;
+/** @type {[typeof __VLS_components.RouterView, typeof __VLS_components.routerView, typeof __VLS_components.RouterView, typeof __VLS_components.routerView, ]} */ ;
 // @ts-ignore
 const __VLS_61 = __VLS_asFunctionalComponent(__VLS_60, new __VLS_60({}));
 const __VLS_62 = __VLS_61({}, ...__VLS_functionalComponentArgsRest(__VLS_61));
+{
+    const { default: __VLS_thisSlot } = __VLS_63.slots;
+    const [{ Component }] = __VLS_getSlotParams(__VLS_thisSlot);
+    const __VLS_64 = {}.KeepAlive;
+    /** @type {[typeof __VLS_components.KeepAlive, typeof __VLS_components.keepAlive, typeof __VLS_components.KeepAlive, typeof __VLS_components.keepAlive, ]} */ ;
+    // @ts-ignore
+    const __VLS_65 = __VLS_asFunctionalComponent(__VLS_64, new __VLS_64({
+        include: "SearchView,DownloadsView,LibraryView",
+    }));
+    const __VLS_66 = __VLS_65({
+        include: "SearchView,DownloadsView,LibraryView",
+    }, ...__VLS_functionalComponentArgsRest(__VLS_65));
+    __VLS_67.slots.default;
+    const __VLS_68 = ((Component));
+    // @ts-ignore
+    const __VLS_69 = __VLS_asFunctionalComponent(__VLS_68, new __VLS_68({}));
+    const __VLS_70 = __VLS_69({}, ...__VLS_functionalComponentArgsRest(__VLS_69));
+    var __VLS_67;
+    __VLS_63.slots['' /* empty slot name completion */];
+}
+var __VLS_63;
 /** @type {__VLS_StyleScopedClasses['app-layout']} */ ;
 /** @type {__VLS_StyleScopedClasses['sidebar']} */ ;
 /** @type {__VLS_StyleScopedClasses['app-brand']} */ ;

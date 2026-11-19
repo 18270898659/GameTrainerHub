@@ -66,3 +66,4 @@ func TestExtractTrainerZipSecurity(t *testing.T) {
 		t.Errorf("CRITICAL SECURITY FLAW: Zip Slip file was written to escaped location: %s", escapedFile)
 	}
 }
+

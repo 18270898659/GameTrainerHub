@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"GameTrainerHub/internal/database/repository"
 	"GameTrainerHub/internal/logger"
@@ -32,8 +33,9 @@ type SecurityCardInfo struct {
 }
 
 type Launcher struct {
-	localRepo *repository.LocalTrainerRepository
-	gameRepo  *repository.GameRepository
+	localRepo       *repository.LocalTrainerRepository
+	gameRepo        *repository.GameRepository
+	activeProcesses sync.Map // map[int64]*os.Process
 }
 
 func NewLauncher(localRepo *repository.LocalTrainerRepository, gameRepo *repository.GameRepository) *Launcher {
@@ -41,6 +43,28 @@ func NewLauncher(localRepo *repository.LocalTrainerRepository, gameRepo *reposit
 		localRepo: localRepo,
 		gameRepo:  gameRepo,
 	}
+}
+
+// IsTrainerRunning 检查指定本地修改器是否正在运行中
+func (l *Launcher) IsTrainerRunning(localTrainerID int64) bool {
+	_, ok := l.activeProcesses.Load(localTrainerID)
+	return ok
+}
+
+// StopTrainer 终止指定本地修改器进程
+func (l *Launcher) StopTrainer(localTrainerID int64) error {
+	val, ok := l.activeProcesses.Load(localTrainerID)
+	if !ok {
+		return fmt.Errorf("trainer is not currently running")
+	}
+	proc, ok := val.(*os.Process)
+	if ok && proc != nil && proc.Pid > 0 {
+		if err := proc.Kill(); err != nil {
+			return fmt.Errorf("failed to kill process: %w", err)
+		}
+	}
+	l.activeProcesses.Delete(localTrainerID)
+	return nil
 }
 
 // GetSecurityCard 获取修改器启动前必须公开展示的安全卡片
@@ -101,6 +125,10 @@ func (l *Launcher) GetSecurityCard(ctx context.Context, localTrainerID int64) (*
 
 // LaunchExecutable 在用户确认后安全拉起修改器进程（非阻塞）
 func (l *Launcher) LaunchExecutable(ctx context.Context, localTrainerID int64, runAsAdmin bool) error {
+	if l.IsTrainerRunning(localTrainerID) {
+		return fmt.Errorf("trainer process is already running (ID: %d)", localTrainerID)
+	}
+
 	card, err := l.GetSecurityCard(ctx, localTrainerID)
 	if err != nil {
 		return err
@@ -131,6 +159,7 @@ func (l *Launcher) LaunchExecutable(ctx context.Context, localTrainerID int64, r
 		if err := windows.ShellExecute(0, verbPtr, filePtr, nil, dirPtr, windows.SW_SHOWNORMAL); err != nil {
 			return fmt.Errorf("failed to launch elevated trainer: %w", err)
 		}
+		l.activeProcesses.Store(localTrainerID, &os.Process{Pid: 0})
 	} else {
 		// 默认普通用户权限执行，工作目录隔离，直接调用可执行文件路径
 		logger.Info("Launching trainer with standard privilege", "path", filePath)
@@ -139,6 +168,11 @@ func (l *Launcher) LaunchExecutable(ctx context.Context, localTrainerID int64, r
 		if err := cmd.Start(); err != nil {
 			return fmt.Errorf("failed to start trainer process: %w", err)
 		}
+		l.activeProcesses.Store(localTrainerID, cmd.Process)
+		go func() {
+			_ = cmd.Wait()
+			l.activeProcesses.Delete(localTrainerID)
+		}()
 	}
 
 	// 记录启动次数与最后启动时间

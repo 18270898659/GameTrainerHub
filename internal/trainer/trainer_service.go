@@ -33,9 +33,10 @@ func NewTrainerService(
 }
 
 type LocalTrainerDetail struct {
-	LocalTrainer *model.LocalTrainer `json:"local_trainer"`
-	Game         *model.Game         `json:"game"`
+	LocalTrainer *model.LocalTrainer   `json:"local_trainer"`
+	Game         *model.Game           `json:"game"`
 	Version      *model.TrainerVersion `json:"version,omitempty"`
+	FileExists   bool                  `json:"file_exists"`
 }
 
 // ListLocalTrainers 列出所有已下载或手动导入的本地修改器
@@ -48,6 +49,11 @@ func (s *TrainerService) ListLocalTrainers(ctx context.Context) ([]*LocalTrainer
 	var details []*LocalTrainerDetail
 	for _, lt := range locals {
 		d := &LocalTrainerDetail{LocalTrainer: lt}
+		if _, statErr := os.Stat(lt.FilePath); statErr == nil {
+			d.FileExists = true
+		} else {
+			d.FileExists = false
+		}
 		if game, err := s.gameRepo.GetByID(ctx, lt.GameID); err == nil {
 			d.Game = game
 		}

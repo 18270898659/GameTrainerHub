@@ -19,7 +19,7 @@ declare global {
       app?: {
         App?: {
           Search: (filter: SearchFilter) => Promise<SearchResult[]>
-          GetTrainerDetail: (detailURL: string) => Promise<[Trainer, TrainerVersion[]]>
+          GetTrainerDetail: (detailURL: string) => Promise<any>
           GetLatestTrainers: (page: number) => Promise<SearchResult[]>
           GetLocalTrainers: () => Promise<LocalTrainerDetail[]>
           ImportCustomTrainer: (gameID: number, filePath: string) => Promise<LocalTrainer>
@@ -61,8 +61,37 @@ export const api = {
   async getTrainerDetail(detailURL: string): Promise<{ trainer: Trainer; versions: TrainerVersion[] }> {
     if (isWails()) {
       const res = await window.go!.app!.App!.GetTrainerDetail(detailURL)
-      // Wails 返回多元组解构
-      return { trainer: res[0], versions: res[1] || [] }
+      if (!res) {
+        return {
+          trainer: {
+            id: 0,
+            game_id: 0,
+            source_id: 'fling',
+            external_id: '',
+            title_en: '',
+            title_cn: '',
+            detail_url: detailURL,
+            author: 'FLiNG',
+            latest_version: '',
+            published_at: '',
+            updated_at: '',
+            is_deleted: false
+          },
+          versions: []
+        }
+      }
+
+      // 兼容结构：支持直接返回 Trainer 对象（含 versions 数组）或旧版元组数组结构
+      if (Array.isArray(res)) {
+        const tr = res[0] || {}
+        const vers = res[1] || tr.versions || []
+        return { trainer: tr, versions: Array.isArray(vers) ? vers : [] }
+      }
+
+      return {
+        trainer: res,
+        versions: Array.isArray(res.versions) ? res.versions : []
+      }
     }
     return {
       trainer: {

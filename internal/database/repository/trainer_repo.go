@@ -53,6 +53,17 @@ func (r *TrainerRepository) UpdateTrainer(ctx context.Context, t *model.Trainer)
 	return nil
 }
 
+// MarkAsDeleted 标记指定修改器资源为下架删除状态
+func (r *TrainerRepository) MarkAsDeleted(ctx context.Context, sourceID string, externalID string) error {
+	now := time.Now()
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE trainers
+		SET is_deleted = 1, updated_at = ?
+		WHERE source_id = ? AND external_id = ?
+	`, now, sourceID, externalID)
+	return err
+}
+
 // GetTrainerByID 根据 ID 获取修改器
 func (r *TrainerRepository) GetTrainerByID(ctx context.Context, id int64) (*model.Trainer, error) {
 	row := r.db.QueryRowContext(ctx, `
@@ -82,6 +93,27 @@ func (r *TrainerRepository) GetTrainerByExternalID(ctx context.Context, sourceID
 		FROM trainers
 		WHERE source_id = ? AND external_id = ?
 	`, sourceID, externalID)
+
+	var t model.Trainer
+	err := row.Scan(&t.ID, &t.GameID, &t.SourceID, &t.ExternalID, &t.TitleEN, &t.TitleCN, &t.DetailURL, &t.Author, &t.LatestVersion, &t.PublishedAt, &t.UpdatedAt, &t.IsDeleted)
+	if err != nil {
+		return nil, err
+	}
+
+	versions, err := r.ListVersionsByTrainerID(ctx, t.ID)
+	if err == nil {
+		t.Versions = versions
+	}
+	return &t, nil
+}
+
+// GetTrainerByDetailURL 根据详情页链接查询修改器
+func (r *TrainerRepository) GetTrainerByDetailURL(ctx context.Context, detailURL string) (*model.Trainer, error) {
+	row := r.db.QueryRowContext(ctx, `
+		SELECT id, game_id, source_id, external_id, title_en, title_cn, detail_url, author, latest_version, published_at, updated_at, is_deleted
+		FROM trainers
+		WHERE detail_url = ?
+	`, detailURL)
 
 	var t model.Trainer
 	err := row.Scan(&t.ID, &t.GameID, &t.SourceID, &t.ExternalID, &t.TitleEN, &t.TitleCN, &t.DetailURL, &t.Author, &t.LatestVersion, &t.PublishedAt, &t.UpdatedAt, &t.IsDeleted)

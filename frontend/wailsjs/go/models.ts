@@ -534,6 +534,7 @@ export namespace trainer {
 	    local_trainer?: model.LocalTrainer;
 	    game?: model.Game;
 	    version?: model.TrainerVersion;
+	    file_exists: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new LocalTrainerDetail(source);
@@ -544,6 +545,7 @@ export namespace trainer {
 	        this.local_trainer = this.convertValues(source["local_trainer"], model.LocalTrainer);
 	        this.game = this.convertValues(source["game"], model.Game);
 	        this.version = this.convertValues(source["version"], model.TrainerVersion);
+	        this.file_exists = source["file_exists"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

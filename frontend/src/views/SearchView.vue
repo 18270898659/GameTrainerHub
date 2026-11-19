@@ -4,9 +4,9 @@
     <div class="search-header">
       <div class="search-input-wrap">
         <el-input
-          v-model="query"
+          v-model="store.query"
           size="large"
-          placeholder="中英双向搜索：赛博朋克2077 / Cyberpunk / sbpk / 老头环 / 荒野大镖客2..."
+          placeholder="中英双向搜索：黑神话：悟空 / Black Myth / 赛博朋克2077 / Cyberpunk / sbpk / 老头环..."
           clearable
           @keyup.enter="handleSearch"
         >
@@ -14,14 +14,33 @@
             <el-icon><Search /></el-icon>
           </template>
           <template #append>
-            <el-button type="primary" :loading="searching" @click="handleSearch">搜索</el-button>
+            <el-button type="primary" :loading="store.searching" @click="handleSearch">搜索</el-button>
           </template>
         </el-input>
       </div>
 
+      <!-- 搜索历史 -->
+      <div v-if="store.searchHistory.length > 0" class="history-bar">
+        <span class="history-label">最近搜索:</span>
+        <div class="history-tags">
+          <el-tag
+            v-for="item in store.searchHistory"
+            :key="item"
+            closable
+            size="small"
+            class="history-tag"
+            @click="clickHistory(item)"
+            @close="store.removeSearchHistory(item)"
+          >
+            {{ item }}
+          </el-tag>
+          <el-button link type="info" size="small" class="clear-btn" @click="store.clearSearchHistory">清空</el-button>
+        </div>
+      </div>
+
       <div class="filter-bar">
-        <el-checkbox v-model="localOnly" @change="handleSearch">仅搜本地已收录</el-checkbox>
-        <el-radio-group v-model="selectedSource" size="small" @change="handleSearch">
+        <el-checkbox v-model="store.localOnly" @change="handleSearch">仅搜本地已收录</el-checkbox>
+        <el-radio-group v-model="store.selectedSource" size="small" @change="handleSearch">
           <el-radio-button value="all">全部来源</el-radio-button>
           <el-radio-button value="fling">FLiNG 官方源</el-radio-button>
         </el-radio-group>
@@ -29,13 +48,13 @@
     </div>
 
     <!-- Search Results -->
-    <div v-loading="searching" class="results-container">
-      <div v-if="results.length > 0" class="results-grid">
+    <div v-loading="store.searching" class="results-container">
+      <div v-if="store.results.length > 0" class="results-grid">
         <div
-          v-for="item in results"
+          v-for="item in store.results"
           :key="item.slug"
           class="result-card"
-          @click="openDetail(item)"
+          @click="store.openDetail(item)"
         >
           <div class="result-thumb">
             <img :src="item.cover_url || defaultThumb" :alt="item.game_name_en" />
@@ -53,7 +72,7 @@
         </div>
       </div>
 
-      <div v-else-if="!searching && hasSearched" class="empty-state">
+      <div v-else-if="!store.searching && store.hasSearched" class="empty-state">
         <el-empty description="未检索到相关修改器资源">
           <template #extra>
             <p class="empty-tip">提示：支持输入中文别名（如“老头环”）、拼音首字母（如“sbpk”）或英文全称检索。</p>
@@ -64,17 +83,17 @@
 
     <!-- Detail Drawer -->
     <el-drawer
-      v-model="drawerVisible"
+      v-model="store.drawerVisible"
       title="修改器详情与版本列表"
       size="480px"
       class="detail-drawer"
     >
-      <div v-if="selectedGame" v-loading="loadingDetail" class="detail-drawer-content">
+      <div v-if="store.selectedGame" v-loading="store.loadingDetail" class="detail-drawer-content">
         <div class="detail-header">
-          <img :src="selectedGame.cover_url || defaultThumb" class="detail-cover" />
+          <img :src="store.selectedGame.cover_url || defaultThumb" class="detail-cover" />
           <div class="detail-title-group">
-            <h3>{{ selectedGame.game_name_cn || selectedGame.game_name_en }}</h3>
-            <p>{{ selectedGame.game_name_en }}</p>
+            <h3>{{ store.selectedGame.game_name_cn || store.selectedGame.game_name_en }}</h3>
+            <p>{{ store.selectedGame.game_name_en }}</p>
           </div>
         </div>
 
@@ -82,9 +101,9 @@
 
         <!-- Versions List -->
         <div class="section-sub">可下载版本列表</div>
-        <div v-if="detailVersions.length > 0" class="versions-list">
+        <div v-if="store.detailVersions.length > 0" class="versions-list">
           <div
-            v-for="v in detailVersions"
+            v-for="v in store.detailVersions"
             :key="v.version_name"
             class="version-item"
           >
@@ -105,8 +124,8 @@
                 v-else
                 type="primary"
                 size="small"
-                :loading="downloadingVerID === v.id"
-                @click="downloadVersion(v)"
+                :loading="store.downloadingVerID === v.id"
+                @click="store.downloadVersion(v)"
               >
                 <el-icon><Download /></el-icon> 客户端下载
               </el-button>
@@ -116,9 +135,9 @@
         <div v-else class="text-gray text-sm">暂无具体版本列表</div>
 
         <!-- Features Cheats List -->
-        <div v-if="detailVersions.length > 0 && detailVersions[0].features_text" class="mt-4">
+        <div v-if="store.detailVersions.length > 0 && store.detailVersions[0]?.features_text" class="mt-4">
           <div class="section-sub">修改器快捷键与功能项</div>
-          <pre class="cheats-box">{{ detailVersions[0].features_text }}</pre>
+          <pre class="cheats-box">{{ store.detailVersions[0]?.features_text }}</pre>
         </div>
       </div>
     </el-drawer>
@@ -126,84 +145,37 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Search, Download } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import { api } from '../api/wails'
-import type { SearchResult, TrainerVersion } from '../types'
+import { useSearchStore } from '../stores/searchStore'
+
+defineOptions({ name: 'SearchView' })
 
 const route = useRoute()
-const query = ref('')
-const localOnly = ref(false)
-const selectedSource = ref('all')
-const searching = ref(false)
-const hasSearched = ref(false)
-const results = ref<SearchResult[]>([])
-
-const drawerVisible = ref(false)
-const selectedGame = ref<SearchResult | null>(null)
-const loadingDetail = ref(false)
-const detailVersions = ref<TrainerVersion[]>([])
-const downloadingVerID = ref<number | null>(null)
+const store = useSearchStore()
 
 const defaultThumb = 'https://flingtrainer.com/wp-content/uploads/2020/12/header-7-200x200.jpg'
 
 onMounted(() => {
   const initialQ = route.query.q as string
-  if (initialQ) {
-    query.value = initialQ
-    handleSearch()
+  if (initialQ && initialQ !== store.query) {
+    store.executeSearch(initialQ)
   }
 })
 
-async function handleSearch() {
-  const q = query.value.trim()
-  if (!q) return
-
-  searching.value = true
-  hasSearched.value = true
-  try {
-    results.value = await api.search({
-      query: q,
-      local_only: localOnly.value,
-      source: selectedSource.value,
-      page: 1,
-      page_size: 50
-    })
-  } catch (e: any) {
-    ElMessage.error('搜索异常: ' + (e.message || e))
-  } finally {
-    searching.value = false
+watch(() => route.query.q, (newQ) => {
+  if (newQ && typeof newQ === 'string' && newQ !== store.query) {
+    store.executeSearch(newQ)
   }
+})
+
+function handleSearch() {
+  store.executeSearch()
 }
 
-async function openDetail(item: SearchResult) {
-  selectedGame.value = item
-  drawerVisible.value = true
-  loadingDetail.value = true
-  detailVersions.value = []
-
-  try {
-    const res = await api.getTrainerDetail(item.detail_url)
-    detailVersions.value = res.versions || []
-  } catch (e: any) {
-    ElMessage.warning('获取版本详情失败: ' + (e.message || e))
-  } finally {
-    loadingDetail.value = false
-  }
-}
-
-async function downloadVersion(v: TrainerVersion) {
-  downloadingVerID.value = v.id
-  try {
-    await api.startDownload(v.id)
-    ElMessage.success('已添加到下载中心')
-  } catch (e: any) {
-    ElMessage.error('创建下载失败: ' + (e.message || e))
-  } finally {
-    downloadingVerID.value = null
-  }
+function clickHistory(kw: string) {
+  store.executeSearch(kw)
 }
 </script>
 
@@ -212,7 +184,44 @@ async function downloadVersion(v: TrainerVersion) {
   margin-bottom: 24px;
 }
 .search-input-wrap {
+  margin-bottom: 8px;
+}
+.history-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-bottom: 12px;
+  padding: 0 4px;
+  flex-wrap: wrap;
+}
+.history-label {
+  font-size: 12px;
+  color: #64748b;
+  white-space: nowrap;
+}
+.history-tags {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.history-tag {
+  cursor: pointer;
+  background: rgba(30, 41, 59, 0.7);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  transition: all 0.2s ease;
+}
+.history-tag:hover {
+  border-color: #38bdf8;
+  color: #38bdf8;
+}
+.clear-btn {
+  font-size: 11px;
+  color: #64748b;
+}
+.clear-btn:hover {
+  color: #94a3b8;
 }
 .filter-bar {
   display: flex;
@@ -359,4 +368,3 @@ async function downloadVersion(v: TrainerVersion) {
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 </style>
-

@@ -69,6 +69,9 @@ func TestTrainerService(t *testing.T) {
 	if list[0].Game == nil || list[0].Game.NameCN != "黑神话：悟空" {
 		t.Errorf("expected game name '黑神话：悟空', got %+v", list[0].Game)
 	}
+	if !list[0].FileExists {
+		t.Errorf("expected FileExists to be true for existing mockExe")
+	}
 
 	// 3. 扫描文件夹
 	scanned, err := svc.ScanFolderForTrainers(tempDir)

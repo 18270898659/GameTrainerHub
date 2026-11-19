@@ -1,84 +1,35 @@
 /// <reference types="../../node_modules/.vue-global-types/vue_3.5_0_0_0.d.ts" />
-import { ref, onMounted } from 'vue';
+import { onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Search, Download } from '@element-plus/icons-vue';
-import { ElMessage } from 'element-plus';
-import { api } from '../api/wails';
+import { useSearchStore } from '../stores/searchStore';
+defineOptions({ name: 'SearchView' });
 const route = useRoute();
-const query = ref('');
-const localOnly = ref(false);
-const selectedSource = ref('all');
-const searching = ref(false);
-const hasSearched = ref(false);
-const results = ref([]);
-const drawerVisible = ref(false);
-const selectedGame = ref(null);
-const loadingDetail = ref(false);
-const detailVersions = ref([]);
-const downloadingVerID = ref(null);
+const store = useSearchStore();
 const defaultThumb = 'https://flingtrainer.com/wp-content/uploads/2020/12/header-7-200x200.jpg';
 onMounted(() => {
     const initialQ = route.query.q;
-    if (initialQ) {
-        query.value = initialQ;
-        handleSearch();
+    if (initialQ && initialQ !== store.query) {
+        store.executeSearch(initialQ);
     }
 });
-async function handleSearch() {
-    const q = query.value.trim();
-    if (!q)
-        return;
-    searching.value = true;
-    hasSearched.value = true;
-    try {
-        results.value = await api.search({
-            query: q,
-            local_only: localOnly.value,
-            source: selectedSource.value,
-            page: 1,
-            page_size: 50
-        });
+watch(() => route.query.q, (newQ) => {
+    if (newQ && typeof newQ === 'string' && newQ !== store.query) {
+        store.executeSearch(newQ);
     }
-    catch (e) {
-        ElMessage.error('搜索异常: ' + (e.message || e));
-    }
-    finally {
-        searching.value = false;
-    }
+});
+function handleSearch() {
+    store.executeSearch();
 }
-async function openDetail(item) {
-    selectedGame.value = item;
-    drawerVisible.value = true;
-    loadingDetail.value = true;
-    detailVersions.value = [];
-    try {
-        const res = await api.getTrainerDetail(item.detail_url);
-        detailVersions.value = res.versions || [];
-    }
-    catch (e) {
-        ElMessage.warning('获取版本详情失败: ' + (e.message || e));
-    }
-    finally {
-        loadingDetail.value = false;
-    }
-}
-async function downloadVersion(v) {
-    downloadingVerID.value = v.id;
-    try {
-        await api.startDownload(v.id);
-        ElMessage.success('已添加到下载中心');
-    }
-    catch (e) {
-        ElMessage.error('创建下载失败: ' + (e.message || e));
-    }
-    finally {
-        downloadingVerID.value = null;
-    }
+function clickHistory(kw) {
+    store.executeSearch(kw);
 }
 debugger; /* PartiallyEnd: #3632/scriptSetup.vue */
 const __VLS_ctx = {};
 let __VLS_components;
 let __VLS_directives;
+/** @type {__VLS_StyleScopedClasses['history-tag']} */ ;
+/** @type {__VLS_StyleScopedClasses['clear-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['result-card']} */ ;
 /** @type {__VLS_StyleScopedClasses['result-thumb']} */ ;
 /** @type {__VLS_StyleScopedClasses['detail-title-group']} */ ;
@@ -98,16 +49,16 @@ const __VLS_0 = {}.ElInput;
 // @ts-ignore
 const __VLS_1 = __VLS_asFunctionalComponent(__VLS_0, new __VLS_0({
     ...{ 'onKeyup': {} },
-    modelValue: (__VLS_ctx.query),
+    modelValue: (__VLS_ctx.store.query),
     size: "large",
-    placeholder: "中英双向搜索：赛博朋克2077 / Cyberpunk / sbpk / 老头环 / 荒野大镖客2...",
+    placeholder: "中英双向搜索：黑神话：悟空 / Black Myth / 赛博朋克2077 / Cyberpunk / sbpk / 老头环...",
     clearable: true,
 }));
 const __VLS_2 = __VLS_1({
     ...{ 'onKeyup': {} },
-    modelValue: (__VLS_ctx.query),
+    modelValue: (__VLS_ctx.store.query),
     size: "large",
-    placeholder: "中英双向搜索：赛博朋克2077 / Cyberpunk / sbpk / 老头环 / 荒野大镖客2...",
+    placeholder: "中英双向搜索：黑神话：悟空 / Black Myth / 赛博朋克2077 / Cyberpunk / sbpk / 老头环...",
     clearable: true,
 }, ...__VLS_functionalComponentArgsRest(__VLS_1));
 let __VLS_4;
@@ -140,12 +91,12 @@ __VLS_3.slots.default;
     const __VLS_17 = __VLS_asFunctionalComponent(__VLS_16, new __VLS_16({
         ...{ 'onClick': {} },
         type: "primary",
-        loading: (__VLS_ctx.searching),
+        loading: (__VLS_ctx.store.searching),
     }));
     const __VLS_18 = __VLS_17({
         ...{ 'onClick': {} },
         type: "primary",
-        loading: (__VLS_ctx.searching),
+        loading: (__VLS_ctx.store.searching),
     }, ...__VLS_functionalComponentArgsRest(__VLS_17));
     let __VLS_20;
     let __VLS_21;
@@ -157,85 +108,162 @@ __VLS_3.slots.default;
     var __VLS_19;
 }
 var __VLS_3;
+if (__VLS_ctx.store.searchHistory.length > 0) {
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "history-bar" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
+        ...{ class: "history-label" },
+    });
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "history-tags" },
+    });
+    for (const [item] of __VLS_getVForSourceType((__VLS_ctx.store.searchHistory))) {
+        const __VLS_24 = {}.ElTag;
+        /** @type {[typeof __VLS_components.ElTag, typeof __VLS_components.elTag, typeof __VLS_components.ElTag, typeof __VLS_components.elTag, ]} */ ;
+        // @ts-ignore
+        const __VLS_25 = __VLS_asFunctionalComponent(__VLS_24, new __VLS_24({
+            ...{ 'onClick': {} },
+            ...{ 'onClose': {} },
+            key: (item),
+            closable: true,
+            size: "small",
+            ...{ class: "history-tag" },
+        }));
+        const __VLS_26 = __VLS_25({
+            ...{ 'onClick': {} },
+            ...{ 'onClose': {} },
+            key: (item),
+            closable: true,
+            size: "small",
+            ...{ class: "history-tag" },
+        }, ...__VLS_functionalComponentArgsRest(__VLS_25));
+        let __VLS_28;
+        let __VLS_29;
+        let __VLS_30;
+        const __VLS_31 = {
+            onClick: (...[$event]) => {
+                if (!(__VLS_ctx.store.searchHistory.length > 0))
+                    return;
+                __VLS_ctx.clickHistory(item);
+            }
+        };
+        const __VLS_32 = {
+            onClose: (...[$event]) => {
+                if (!(__VLS_ctx.store.searchHistory.length > 0))
+                    return;
+                __VLS_ctx.store.removeSearchHistory(item);
+            }
+        };
+        __VLS_27.slots.default;
+        (item);
+        var __VLS_27;
+    }
+    const __VLS_33 = {}.ElButton;
+    /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
+    // @ts-ignore
+    const __VLS_34 = __VLS_asFunctionalComponent(__VLS_33, new __VLS_33({
+        ...{ 'onClick': {} },
+        link: true,
+        type: "info",
+        size: "small",
+        ...{ class: "clear-btn" },
+    }));
+    const __VLS_35 = __VLS_34({
+        ...{ 'onClick': {} },
+        link: true,
+        type: "info",
+        size: "small",
+        ...{ class: "clear-btn" },
+    }, ...__VLS_functionalComponentArgsRest(__VLS_34));
+    let __VLS_37;
+    let __VLS_38;
+    let __VLS_39;
+    const __VLS_40 = {
+        onClick: (__VLS_ctx.store.clearSearchHistory)
+    };
+    __VLS_36.slots.default;
+    var __VLS_36;
+}
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "filter-bar" },
 });
-const __VLS_24 = {}.ElCheckbox;
+const __VLS_41 = {}.ElCheckbox;
 /** @type {[typeof __VLS_components.ElCheckbox, typeof __VLS_components.elCheckbox, typeof __VLS_components.ElCheckbox, typeof __VLS_components.elCheckbox, ]} */ ;
 // @ts-ignore
-const __VLS_25 = __VLS_asFunctionalComponent(__VLS_24, new __VLS_24({
+const __VLS_42 = __VLS_asFunctionalComponent(__VLS_41, new __VLS_41({
     ...{ 'onChange': {} },
-    modelValue: (__VLS_ctx.localOnly),
+    modelValue: (__VLS_ctx.store.localOnly),
 }));
-const __VLS_26 = __VLS_25({
+const __VLS_43 = __VLS_42({
     ...{ 'onChange': {} },
-    modelValue: (__VLS_ctx.localOnly),
-}, ...__VLS_functionalComponentArgsRest(__VLS_25));
-let __VLS_28;
-let __VLS_29;
-let __VLS_30;
-const __VLS_31 = {
+    modelValue: (__VLS_ctx.store.localOnly),
+}, ...__VLS_functionalComponentArgsRest(__VLS_42));
+let __VLS_45;
+let __VLS_46;
+let __VLS_47;
+const __VLS_48 = {
     onChange: (__VLS_ctx.handleSearch)
 };
-__VLS_27.slots.default;
-var __VLS_27;
-const __VLS_32 = {}.ElRadioGroup;
+__VLS_44.slots.default;
+var __VLS_44;
+const __VLS_49 = {}.ElRadioGroup;
 /** @type {[typeof __VLS_components.ElRadioGroup, typeof __VLS_components.elRadioGroup, typeof __VLS_components.ElRadioGroup, typeof __VLS_components.elRadioGroup, ]} */ ;
 // @ts-ignore
-const __VLS_33 = __VLS_asFunctionalComponent(__VLS_32, new __VLS_32({
+const __VLS_50 = __VLS_asFunctionalComponent(__VLS_49, new __VLS_49({
     ...{ 'onChange': {} },
-    modelValue: (__VLS_ctx.selectedSource),
+    modelValue: (__VLS_ctx.store.selectedSource),
     size: "small",
 }));
-const __VLS_34 = __VLS_33({
+const __VLS_51 = __VLS_50({
     ...{ 'onChange': {} },
-    modelValue: (__VLS_ctx.selectedSource),
+    modelValue: (__VLS_ctx.store.selectedSource),
     size: "small",
-}, ...__VLS_functionalComponentArgsRest(__VLS_33));
-let __VLS_36;
-let __VLS_37;
-let __VLS_38;
-const __VLS_39 = {
+}, ...__VLS_functionalComponentArgsRest(__VLS_50));
+let __VLS_53;
+let __VLS_54;
+let __VLS_55;
+const __VLS_56 = {
     onChange: (__VLS_ctx.handleSearch)
 };
-__VLS_35.slots.default;
-const __VLS_40 = {}.ElRadioButton;
+__VLS_52.slots.default;
+const __VLS_57 = {}.ElRadioButton;
 /** @type {[typeof __VLS_components.ElRadioButton, typeof __VLS_components.elRadioButton, typeof __VLS_components.ElRadioButton, typeof __VLS_components.elRadioButton, ]} */ ;
 // @ts-ignore
-const __VLS_41 = __VLS_asFunctionalComponent(__VLS_40, new __VLS_40({
+const __VLS_58 = __VLS_asFunctionalComponent(__VLS_57, new __VLS_57({
     value: "all",
 }));
-const __VLS_42 = __VLS_41({
+const __VLS_59 = __VLS_58({
     value: "all",
-}, ...__VLS_functionalComponentArgsRest(__VLS_41));
-__VLS_43.slots.default;
-var __VLS_43;
-const __VLS_44 = {}.ElRadioButton;
+}, ...__VLS_functionalComponentArgsRest(__VLS_58));
+__VLS_60.slots.default;
+var __VLS_60;
+const __VLS_61 = {}.ElRadioButton;
 /** @type {[typeof __VLS_components.ElRadioButton, typeof __VLS_components.elRadioButton, typeof __VLS_components.ElRadioButton, typeof __VLS_components.elRadioButton, ]} */ ;
 // @ts-ignore
-const __VLS_45 = __VLS_asFunctionalComponent(__VLS_44, new __VLS_44({
+const __VLS_62 = __VLS_asFunctionalComponent(__VLS_61, new __VLS_61({
     value: "fling",
 }));
-const __VLS_46 = __VLS_45({
+const __VLS_63 = __VLS_62({
     value: "fling",
-}, ...__VLS_functionalComponentArgsRest(__VLS_45));
-__VLS_47.slots.default;
-var __VLS_47;
-var __VLS_35;
+}, ...__VLS_functionalComponentArgsRest(__VLS_62));
+__VLS_64.slots.default;
+var __VLS_64;
+var __VLS_52;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "results-container" },
 });
-__VLS_asFunctionalDirective(__VLS_directives.vLoading)(null, { ...__VLS_directiveBindingRestFields, value: (__VLS_ctx.searching) }, null, null);
-if (__VLS_ctx.results.length > 0) {
+__VLS_asFunctionalDirective(__VLS_directives.vLoading)(null, { ...__VLS_directiveBindingRestFields, value: (__VLS_ctx.store.searching) }, null, null);
+if (__VLS_ctx.store.results.length > 0) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "results-grid" },
     });
-    for (const [item] of __VLS_getVForSourceType((__VLS_ctx.results))) {
+    for (const [item] of __VLS_getVForSourceType((__VLS_ctx.store.results))) {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ onClick: (...[$event]) => {
-                    if (!(__VLS_ctx.results.length > 0))
+                    if (!(__VLS_ctx.store.results.length > 0))
                         return;
-                    __VLS_ctx.openDetail(item);
+                    __VLS_ctx.store.openDetail(item);
                 } },
             key: (item.slug),
             ...{ class: "result-card" },
@@ -248,38 +276,38 @@ if (__VLS_ctx.results.length > 0) {
             alt: (item.game_name_en),
         });
         if (item.is_downloaded) {
-            const __VLS_48 = {}.ElTag;
+            const __VLS_65 = {}.ElTag;
             /** @type {[typeof __VLS_components.ElTag, typeof __VLS_components.elTag, typeof __VLS_components.ElTag, typeof __VLS_components.elTag, ]} */ ;
             // @ts-ignore
-            const __VLS_49 = __VLS_asFunctionalComponent(__VLS_48, new __VLS_48({
+            const __VLS_66 = __VLS_asFunctionalComponent(__VLS_65, new __VLS_65({
                 type: "success",
                 size: "small",
                 ...{ class: "dl-tag" },
             }));
-            const __VLS_50 = __VLS_49({
+            const __VLS_67 = __VLS_66({
                 type: "success",
                 size: "small",
                 ...{ class: "dl-tag" },
-            }, ...__VLS_functionalComponentArgsRest(__VLS_49));
-            __VLS_51.slots.default;
-            var __VLS_51;
+            }, ...__VLS_functionalComponentArgsRest(__VLS_66));
+            __VLS_68.slots.default;
+            var __VLS_68;
         }
         else if (item.is_online_only) {
-            const __VLS_52 = {}.ElTag;
+            const __VLS_69 = {}.ElTag;
             /** @type {[typeof __VLS_components.ElTag, typeof __VLS_components.elTag, typeof __VLS_components.ElTag, typeof __VLS_components.elTag, ]} */ ;
             // @ts-ignore
-            const __VLS_53 = __VLS_asFunctionalComponent(__VLS_52, new __VLS_52({
+            const __VLS_70 = __VLS_asFunctionalComponent(__VLS_69, new __VLS_69({
                 type: "info",
                 size: "small",
                 ...{ class: "dl-tag" },
             }));
-            const __VLS_54 = __VLS_53({
+            const __VLS_71 = __VLS_70({
                 type: "info",
                 size: "small",
                 ...{ class: "dl-tag" },
-            }, ...__VLS_functionalComponentArgsRest(__VLS_53));
-            __VLS_55.slots.default;
-            var __VLS_55;
+            }, ...__VLS_functionalComponentArgsRest(__VLS_70));
+            __VLS_72.slots.default;
+            var __VLS_72;
         }
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: "result-body" },
@@ -305,76 +333,76 @@ if (__VLS_ctx.results.length > 0) {
         (Math.min(100, Math.round(item.score)));
     }
 }
-else if (!__VLS_ctx.searching && __VLS_ctx.hasSearched) {
+else if (!__VLS_ctx.store.searching && __VLS_ctx.store.hasSearched) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "empty-state" },
     });
-    const __VLS_56 = {}.ElEmpty;
+    const __VLS_73 = {}.ElEmpty;
     /** @type {[typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, ]} */ ;
     // @ts-ignore
-    const __VLS_57 = __VLS_asFunctionalComponent(__VLS_56, new __VLS_56({
+    const __VLS_74 = __VLS_asFunctionalComponent(__VLS_73, new __VLS_73({
         description: "未检索到相关修改器资源",
     }));
-    const __VLS_58 = __VLS_57({
+    const __VLS_75 = __VLS_74({
         description: "未检索到相关修改器资源",
-    }, ...__VLS_functionalComponentArgsRest(__VLS_57));
-    __VLS_59.slots.default;
+    }, ...__VLS_functionalComponentArgsRest(__VLS_74));
+    __VLS_76.slots.default;
     {
-        const { extra: __VLS_thisSlot } = __VLS_59.slots;
+        const { extra: __VLS_thisSlot } = __VLS_76.slots;
         __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
             ...{ class: "empty-tip" },
         });
     }
-    var __VLS_59;
+    var __VLS_76;
 }
-const __VLS_60 = {}.ElDrawer;
+const __VLS_77 = {}.ElDrawer;
 /** @type {[typeof __VLS_components.ElDrawer, typeof __VLS_components.elDrawer, typeof __VLS_components.ElDrawer, typeof __VLS_components.elDrawer, ]} */ ;
 // @ts-ignore
-const __VLS_61 = __VLS_asFunctionalComponent(__VLS_60, new __VLS_60({
-    modelValue: (__VLS_ctx.drawerVisible),
+const __VLS_78 = __VLS_asFunctionalComponent(__VLS_77, new __VLS_77({
+    modelValue: (__VLS_ctx.store.drawerVisible),
     title: "修改器详情与版本列表",
     size: "480px",
     ...{ class: "detail-drawer" },
 }));
-const __VLS_62 = __VLS_61({
-    modelValue: (__VLS_ctx.drawerVisible),
+const __VLS_79 = __VLS_78({
+    modelValue: (__VLS_ctx.store.drawerVisible),
     title: "修改器详情与版本列表",
     size: "480px",
     ...{ class: "detail-drawer" },
-}, ...__VLS_functionalComponentArgsRest(__VLS_61));
-__VLS_63.slots.default;
-if (__VLS_ctx.selectedGame) {
+}, ...__VLS_functionalComponentArgsRest(__VLS_78));
+__VLS_80.slots.default;
+if (__VLS_ctx.store.selectedGame) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "detail-drawer-content" },
     });
-    __VLS_asFunctionalDirective(__VLS_directives.vLoading)(null, { ...__VLS_directiveBindingRestFields, value: (__VLS_ctx.loadingDetail) }, null, null);
+    __VLS_asFunctionalDirective(__VLS_directives.vLoading)(null, { ...__VLS_directiveBindingRestFields, value: (__VLS_ctx.store.loadingDetail) }, null, null);
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "detail-header" },
     });
     __VLS_asFunctionalElement(__VLS_intrinsicElements.img)({
-        src: (__VLS_ctx.selectedGame.cover_url || __VLS_ctx.defaultThumb),
+        src: (__VLS_ctx.store.selectedGame.cover_url || __VLS_ctx.defaultThumb),
         ...{ class: "detail-cover" },
     });
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "detail-title-group" },
     });
     __VLS_asFunctionalElement(__VLS_intrinsicElements.h3, __VLS_intrinsicElements.h3)({});
-    (__VLS_ctx.selectedGame.game_name_cn || __VLS_ctx.selectedGame.game_name_en);
+    (__VLS_ctx.store.selectedGame.game_name_cn || __VLS_ctx.store.selectedGame.game_name_en);
     __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({});
-    (__VLS_ctx.selectedGame.game_name_en);
-    const __VLS_64 = {}.ElDivider;
+    (__VLS_ctx.store.selectedGame.game_name_en);
+    const __VLS_81 = {}.ElDivider;
     /** @type {[typeof __VLS_components.ElDivider, typeof __VLS_components.elDivider, ]} */ ;
     // @ts-ignore
-    const __VLS_65 = __VLS_asFunctionalComponent(__VLS_64, new __VLS_64({}));
-    const __VLS_66 = __VLS_65({}, ...__VLS_functionalComponentArgsRest(__VLS_65));
+    const __VLS_82 = __VLS_asFunctionalComponent(__VLS_81, new __VLS_81({}));
+    const __VLS_83 = __VLS_82({}, ...__VLS_functionalComponentArgsRest(__VLS_82));
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "section-sub" },
     });
-    if (__VLS_ctx.detailVersions.length > 0) {
+    if (__VLS_ctx.store.detailVersions.length > 0) {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: "versions-list" },
         });
-        for (const [v] of __VLS_getVForSourceType((__VLS_ctx.detailVersions))) {
+        for (const [v] of __VLS_getVForSourceType((__VLS_ctx.store.detailVersions))) {
             __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
                 key: (v.version_name),
                 ...{ class: "version-item" },
@@ -392,66 +420,66 @@ if (__VLS_ctx.selectedGame) {
                 ...{ class: "version-action" },
             });
             if (v.is_downloaded) {
-                const __VLS_68 = {}.ElButton;
+                const __VLS_85 = {}.ElButton;
                 /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
                 // @ts-ignore
-                const __VLS_69 = __VLS_asFunctionalComponent(__VLS_68, new __VLS_68({
+                const __VLS_86 = __VLS_asFunctionalComponent(__VLS_85, new __VLS_85({
                     type: "success",
                     size: "small",
                     disabled: true,
                 }));
-                const __VLS_70 = __VLS_69({
+                const __VLS_87 = __VLS_86({
                     type: "success",
                     size: "small",
                     disabled: true,
-                }, ...__VLS_functionalComponentArgsRest(__VLS_69));
-                __VLS_71.slots.default;
-                var __VLS_71;
+                }, ...__VLS_functionalComponentArgsRest(__VLS_86));
+                __VLS_88.slots.default;
+                var __VLS_88;
             }
             else {
-                const __VLS_72 = {}.ElButton;
+                const __VLS_89 = {}.ElButton;
                 /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
                 // @ts-ignore
-                const __VLS_73 = __VLS_asFunctionalComponent(__VLS_72, new __VLS_72({
+                const __VLS_90 = __VLS_asFunctionalComponent(__VLS_89, new __VLS_89({
                     ...{ 'onClick': {} },
                     type: "primary",
                     size: "small",
-                    loading: (__VLS_ctx.downloadingVerID === v.id),
+                    loading: (__VLS_ctx.store.downloadingVerID === v.id),
                 }));
-                const __VLS_74 = __VLS_73({
+                const __VLS_91 = __VLS_90({
                     ...{ 'onClick': {} },
                     type: "primary",
                     size: "small",
-                    loading: (__VLS_ctx.downloadingVerID === v.id),
-                }, ...__VLS_functionalComponentArgsRest(__VLS_73));
-                let __VLS_76;
-                let __VLS_77;
-                let __VLS_78;
-                const __VLS_79 = {
+                    loading: (__VLS_ctx.store.downloadingVerID === v.id),
+                }, ...__VLS_functionalComponentArgsRest(__VLS_90));
+                let __VLS_93;
+                let __VLS_94;
+                let __VLS_95;
+                const __VLS_96 = {
                     onClick: (...[$event]) => {
-                        if (!(__VLS_ctx.selectedGame))
+                        if (!(__VLS_ctx.store.selectedGame))
                             return;
-                        if (!(__VLS_ctx.detailVersions.length > 0))
+                        if (!(__VLS_ctx.store.detailVersions.length > 0))
                             return;
                         if (!!(v.is_downloaded))
                             return;
-                        __VLS_ctx.downloadVersion(v);
+                        __VLS_ctx.store.downloadVersion(v);
                     }
                 };
-                __VLS_75.slots.default;
-                const __VLS_80 = {}.ElIcon;
+                __VLS_92.slots.default;
+                const __VLS_97 = {}.ElIcon;
                 /** @type {[typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, ]} */ ;
                 // @ts-ignore
-                const __VLS_81 = __VLS_asFunctionalComponent(__VLS_80, new __VLS_80({}));
-                const __VLS_82 = __VLS_81({}, ...__VLS_functionalComponentArgsRest(__VLS_81));
-                __VLS_83.slots.default;
-                const __VLS_84 = {}.Download;
+                const __VLS_98 = __VLS_asFunctionalComponent(__VLS_97, new __VLS_97({}));
+                const __VLS_99 = __VLS_98({}, ...__VLS_functionalComponentArgsRest(__VLS_98));
+                __VLS_100.slots.default;
+                const __VLS_101 = {}.Download;
                 /** @type {[typeof __VLS_components.Download, ]} */ ;
                 // @ts-ignore
-                const __VLS_85 = __VLS_asFunctionalComponent(__VLS_84, new __VLS_84({}));
-                const __VLS_86 = __VLS_85({}, ...__VLS_functionalComponentArgsRest(__VLS_85));
-                var __VLS_83;
-                var __VLS_75;
+                const __VLS_102 = __VLS_asFunctionalComponent(__VLS_101, new __VLS_101({}));
+                const __VLS_103 = __VLS_102({}, ...__VLS_functionalComponentArgsRest(__VLS_102));
+                var __VLS_100;
+                var __VLS_92;
             }
         }
     }
@@ -460,7 +488,7 @@ if (__VLS_ctx.selectedGame) {
             ...{ class: "text-gray text-sm" },
         });
     }
-    if (__VLS_ctx.detailVersions.length > 0 && __VLS_ctx.detailVersions[0].features_text) {
+    if (__VLS_ctx.store.detailVersions.length > 0 && __VLS_ctx.store.detailVersions[0]?.features_text) {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: "mt-4" },
         });
@@ -470,13 +498,18 @@ if (__VLS_ctx.selectedGame) {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.pre, __VLS_intrinsicElements.pre)({
             ...{ class: "cheats-box" },
         });
-        (__VLS_ctx.detailVersions[0].features_text);
+        (__VLS_ctx.store.detailVersions[0]?.features_text);
     }
 }
-var __VLS_63;
+var __VLS_80;
 /** @type {__VLS_StyleScopedClasses['search-view']} */ ;
 /** @type {__VLS_StyleScopedClasses['search-header']} */ ;
 /** @type {__VLS_StyleScopedClasses['search-input-wrap']} */ ;
+/** @type {__VLS_StyleScopedClasses['history-bar']} */ ;
+/** @type {__VLS_StyleScopedClasses['history-label']} */ ;
+/** @type {__VLS_StyleScopedClasses['history-tags']} */ ;
+/** @type {__VLS_StyleScopedClasses['history-tag']} */ ;
+/** @type {__VLS_StyleScopedClasses['clear-btn']} */ ;
 /** @type {__VLS_StyleScopedClasses['filter-bar']} */ ;
 /** @type {__VLS_StyleScopedClasses['results-container']} */ ;
 /** @type {__VLS_StyleScopedClasses['results-grid']} */ ;
@@ -514,21 +547,10 @@ const __VLS_self = (await import('vue')).defineComponent({
         return {
             Search: Search,
             Download: Download,
-            query: query,
-            localOnly: localOnly,
-            selectedSource: selectedSource,
-            searching: searching,
-            hasSearched: hasSearched,
-            results: results,
-            drawerVisible: drawerVisible,
-            selectedGame: selectedGame,
-            loadingDetail: loadingDetail,
-            detailVersions: detailVersions,
-            downloadingVerID: downloadingVerID,
+            store: store,
             defaultThumb: defaultThumb,
             handleSearch: handleSearch,
-            openDetail: openDetail,
-            downloadVersion: downloadVersion,
+            clickHistory: clickHistory,
         };
     },
 });

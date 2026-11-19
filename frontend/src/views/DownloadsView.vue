@@ -1,22 +1,23 @@
 <template>
   <div class="downloads-view">
     <el-tabs v-model="activeTab" class="custom-tabs">
-      <!-- 正在下载 -->
+      <!-- 正在下载 / 活动任务 -->
       <el-tab-pane :label="`下载任务 (${store.downloadTasks.length})`" name="active">
         <div v-if="store.downloadTasks.length > 0" class="task-list">
           <div
             v-for="task in store.downloadTasks"
             :key="task.id"
             class="task-card"
+            :class="{ 'card-failed': task.status === 'failed', 'card-retrying': task.status === 'retrying' }"
           >
             <div class="task-header">
               <div class="task-names">
-                <span class="task-game">{{ task.game_name || '修改器下载' }}</span>
+                <span class="task-game">{{ task.game_name || '游戏修改器' }}</span>
                 <span class="task-file">{{ task.file_name }}</span>
               </div>
               <div class="task-actions">
                 <el-button
-                  v-if="task.status === 'downloading'"
+                  v-if="task.status === 'downloading' || task.status === 'retrying'"
                   size="small"
                   plain
                   @click="pauseTask(task.id)"
@@ -24,7 +25,7 @@
                   <el-icon><VideoPause /></el-icon> 暂停
                 </el-button>
                 <el-button
-                  v-else-if="task.status === 'paused' || task.status === 'failed'"
+                  v-else-if="task.status === 'paused'"
                   size="small"
                   type="primary"
                   plain
@@ -33,33 +34,58 @@
                   <el-icon><VideoPlay /></el-icon> 继续
                 </el-button>
                 <el-button
+                  v-else-if="task.status === 'failed'"
+                  size="small"
+                  type="warning"
+                  plain
+                  @click="resumeTask(task.id)"
+                >
+                  <el-icon><RefreshRight /></el-icon> 重试下载
+                </el-button>
+                <el-button
+                  v-if="task.status === 'completed'"
+                  size="small"
+                  type="success"
+                  plain
+                  @click="openFolder(task.save_path)"
+                >
+                  <el-icon><FolderOpened /></el-icon> 定位文件
+                </el-button>
+                <el-button
                   size="small"
                   type="danger"
                   plain
                   @click="cancelTask(task.id)"
                 >
-                  <el-icon><Delete /></el-icon> 取消
+                  <el-icon><Delete /></el-icon> {{ task.status === 'completed' ? '清除' : '取消' }}
                 </el-button>
               </div>
             </div>
 
             <div class="task-progress-wrap">
               <el-progress
-                :percentage="Number(task.progress.toFixed(1))"
-                :status="task.status === 'completed' ? 'success' : task.status === 'failed' ? 'exception' : ''"
+                :percentage="task.total_bytes > 0 ? Number(task.progress.toFixed(1)) : 0"
+                :indeterminate="task.status === 'downloading' && task.total_bytes <= 0"
+                :status="task.status === 'completed' ? 'success' : task.status === 'failed' ? 'exception' : task.status === 'retrying' ? 'warning' : ''"
                 :stroke-width="8"
               />
             </div>
 
+            <!-- 异常与重试提示条 -->
+            <div v-if="task.error_msg && (task.status === 'failed' || task.status === 'retrying')" class="task-error-alert">
+              <el-icon><WarningFilled /></el-icon>
+              <span>{{ task.error_msg }}</span>
+            </div>
+
             <div class="task-footer">
               <span class="task-bytes">
-                {{ formatBytes(task.downloaded_bytes) }} / {{ formatBytes(task.total_bytes) }}
+                {{ formatBytes(task.downloaded_bytes) }} / {{ task.total_bytes > 0 ? formatBytes(task.total_bytes) : '未知大小' }}
               </span>
               <span v-if="task.status === 'downloading'" class="task-speed">
                 {{ formatBytes(task.speed_bytes_per_sec) }}/s
               </span>
-              <span v-else class="task-status-text">
-                状态: {{ getStatusLabel(task.status) }}
+              <span v-else class="task-status-text" :class="`status-${task.status}`">
+                状态: {{ getStatusLabel(task.status, task.retries) }}
               </span>
             </div>
           </div>
@@ -82,7 +108,7 @@
           </el-table-column>
           <el-table-column label="SHA-256" width="220">
             <template #default="{ row }">
-              <span class="hash-short" :title="row.sha256">{{ row.sha256.substring(0, 16) }}...</span>
+              <span class="hash-short" :title="row.sha256">{{ (row.sha256 || '').substring(0, 16) }}...</span>
               <el-button link type="primary" size="small" @click="copy(row.sha256)">复制</el-button>
             </template>
           </el-table-column>
@@ -101,11 +127,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { VideoPause, VideoPlay, Delete } from '@element-plus/icons-vue'
+import { VideoPause, VideoPlay, Delete, RefreshRight, FolderOpened, WarningFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAppStore } from '../stores/appStore'
 import { api } from '../api/wails'
 import type { DownloadHistory } from '../types'
+
+defineOptions({ name: 'DownloadsView' })
 
 const store = useAppStore()
 const activeTab = ref('active')
@@ -129,7 +157,7 @@ async function pauseTask(id: number) {
     await api.pauseDownload(id)
     await store.refreshDownloads()
   } catch (e: any) {
-    ElMessage.error('暂停失败: ' + (e.message || e))
+    ElMessage.error('暂停失败: ' + (e?.message || e))
   }
 }
 
@@ -137,8 +165,9 @@ async function resumeTask(id: number) {
   try {
     await api.resumeDownload(id)
     await store.refreshDownloads()
+    ElMessage.success('已启动下载任务')
   } catch (e: any) {
-    ElMessage.error('恢复失败: ' + (e.message || e))
+    ElMessage.error('恢复失败: ' + (e?.message || e))
   }
 }
 
@@ -146,9 +175,9 @@ async function cancelTask(id: number) {
   try {
     await api.cancelDownload(id)
     await store.refreshDownloads()
-    ElMessage.success('已取消下载')
+    ElMessage.success('已取消下载任务')
   } catch (e: any) {
-    ElMessage.error('取消失败: ' + (e.message || e))
+    ElMessage.error('取消失败: ' + (e?.message || e))
   }
 }
 
@@ -156,13 +185,14 @@ async function openFolder(path: string) {
   try {
     await api.openContainingFolder(path)
   } catch (e: any) {
-    ElMessage.error('定位失败: ' + (e.message || e))
+    ElMessage.error('定位失败: ' + (e?.message || e))
   }
 }
 
 function copy(text: string) {
+  if (!text) return
   navigator.clipboard.writeText(text)
-  ElMessage.success('已复制')
+  ElMessage.success('已复制到剪贴板')
 }
 
 function formatBytes(bytes: number): string {
@@ -173,9 +203,10 @@ function formatBytes(bytes: number): string {
   return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i]
 }
 
-function getStatusLabel(status: string): string {
+function getStatusLabel(status: string, retries?: number): string {
   switch (status) {
     case 'downloading': return '正在下载'
+    case 'retrying': return retries ? `网络重试中 (${retries}/3)` : '重试中'
     case 'paused': return '已暂停'
     case 'completed': return '已完成'
     case 'failed': return '下载失败'
@@ -195,6 +226,14 @@ function getStatusLabel(status: string): string {
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 8px;
   padding: 16px;
+  transition: all 0.2s ease;
+}
+.card-failed {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(30, 41, 59, 0.7);
+}
+.card-retrying {
+  border-color: rgba(234, 179, 8, 0.4);
 }
 .task-header {
   display: flex;
@@ -216,8 +255,30 @@ function getStatusLabel(status: string): string {
   font-size: 12px;
   color: #94a3b8;
 }
+.task-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
 .task-progress-wrap {
   margin-bottom: 8px;
+}
+.task-error-alert {
+  margin-bottom: 8px;
+  padding: 6px 12px;
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  border-radius: 4px;
+  color: #f87171;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.card-retrying .task-error-alert {
+  background: rgba(234, 179, 8, 0.12);
+  border-color: rgba(234, 179, 8, 0.25);
+  color: #facc15;
 }
 .task-footer {
   display: flex;
@@ -229,6 +290,21 @@ function getStatusLabel(status: string): string {
   color: #38bdf8;
   font-weight: 600;
 }
+.task-status-text {
+  font-weight: 500;
+}
+.status-failed {
+  color: #ef4444;
+}
+.status-retrying {
+  color: #eab308;
+}
+.status-completed {
+  color: #22c55e;
+}
+.status-downloading {
+  color: #38bdf8;
+}
 .empty-wrap {
   padding: 60px 0;
 }
@@ -238,4 +314,3 @@ function getStatusLabel(status: string): string {
   margin-right: 6px;
 }
 </style>
-

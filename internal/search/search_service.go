@@ -2,6 +2,7 @@ package search
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"strings"
 	"sync"
@@ -69,7 +70,8 @@ func (s *SearchService) Search(ctx context.Context, filter *model.SearchFilter) 
 		logger.Warn("Local FTS search error", "err", err)
 	} else {
 		for _, item := range localMatches {
-			resultMap[item.Slug] = item
+			key := fmt.Sprintf("%s:%s", item.Slug, item.SourceID)
+			resultMap[key] = item
 		}
 	}
 
@@ -106,21 +108,38 @@ func (s *SearchService) Search(ctx context.Context, filter *model.SearchFilter) 
 					mapMu.Lock()
 					defer mapMu.Unlock()
 					for _, item := range items {
-						if existing, ok := resultMap[item.Slug]; ok {
-							// 本地已有该游戏，保留本地的下载状态和中文名，补充在线信息
+						key := fmt.Sprintf("%s:%s", item.Slug, item.SourceID)
+						if existing, ok := resultMap[key]; ok {
+							// 本地已有该游戏修改器，保留本地的下载状态和中文名，补充在线信息
 							if existing.CoverURL == "" && item.CoverURL != "" {
 								existing.CoverURL = item.CoverURL
 							}
 							if existing.TrainerTitle == "" {
 								existing.TrainerTitle = item.TrainerTitle
 							}
-						} else {
-							// 自动推导并填充中文名
-							cnCandidates := s.translator.TranslateEnglishToChinese(item.GameNameEN)
-							if len(cnCandidates) > 0 {
-								item.GameNameCN = cnCandidates[0]
+							if existing.DetailURL == "" {
+								existing.DetailURL = item.DetailURL
 							}
-							resultMap[item.Slug] = item
+						} else {
+							// 检查是否已有未指定来源的本地游戏条目（key 为 slug:local）
+							localStubKey := fmt.Sprintf("%s:local", item.Slug)
+							if localStub, localOk := resultMap[localStubKey]; localOk {
+								delete(resultMap, localStubKey)
+								if item.GameNameCN == "" && localStub.GameNameCN != "" {
+									item.GameNameCN = localStub.GameNameCN
+								}
+								if item.CoverURL == "" && localStub.CoverURL != "" {
+									item.CoverURL = localStub.CoverURL
+								}
+								item.GameID = localStub.GameID
+							} else {
+								// 自动推导并填充中文名
+								cnCandidates := s.translator.TranslateEnglishToChinese(item.GameNameEN)
+								if len(cnCandidates) > 0 {
+									item.GameNameCN = cnCandidates[0]
+								}
+							}
+							resultMap[key] = item
 						}
 					}
 				}(adp, kw)
@@ -187,40 +206,51 @@ func (s *SearchService) searchLocal(ctx context.Context, rawQuery string, expand
 
 		// 查询修改器及下载状态
 		trainers, _ := s.trainerRepo.ListTrainersByGameID(ctx, gameID)
-		var isDl bool
-		var trainerTitle, versionName, detailURL string
-		var updatedAt = game.UpdatedAt
-
-		if len(trainers) > 0 {
-			tr := trainers[0]
-			trainerTitle = tr.TitleEN
-			detailURL = tr.DetailURL
-			updatedAt = tr.UpdatedAt
-			if len(tr.Versions) > 0 {
-				versionName = tr.Versions[0].VersionName
-				for _, v := range tr.Versions {
-					if v.IsDownloaded {
-						isDl = true
-						break
+		if len(trainers) == 0 {
+			results = append(results, &model.SearchResult{
+				GameID:       game.ID,
+				Slug:         game.Slug,
+				GameNameEN:   game.NameEN,
+				GameNameCN:   game.NameCN,
+				CoverURL:     game.CoverURL,
+				SourceID:     "local",
+				UpdatedAt:    game.UpdatedAt,
+				IsDownloaded: false,
+				IsOnlineOnly: false,
+			})
+		} else {
+			for _, tr := range trainers {
+				var isDl bool
+				var versionName string
+				if len(tr.Versions) > 0 {
+					versionName = tr.Versions[0].VersionName
+					for _, v := range tr.Versions {
+						if v.IsDownloaded {
+							isDl = true
+							break
+						}
 					}
 				}
+				sourceID := tr.SourceID
+				if sourceID == "" {
+					sourceID = "local"
+				}
+				results = append(results, &model.SearchResult{
+					GameID:       game.ID,
+					Slug:         game.Slug,
+					GameNameEN:   game.NameEN,
+					GameNameCN:   game.NameCN,
+					CoverURL:     game.CoverURL,
+					SourceID:     sourceID,
+					TrainerTitle: tr.TitleEN,
+					DetailURL:    tr.DetailURL,
+					VersionName:  versionName,
+					UpdatedAt:    tr.UpdatedAt,
+					IsDownloaded: isDl,
+					IsOnlineOnly: false,
+				})
 			}
 		}
-
-		results = append(results, &model.SearchResult{
-			GameID:       game.ID,
-			Slug:         game.Slug,
-			GameNameEN:   game.NameEN,
-			GameNameCN:   game.NameCN,
-			CoverURL:     game.CoverURL,
-			SourceID:     "local",
-			TrainerTitle: trainerTitle,
-			DetailURL:    detailURL,
-			VersionName:  versionName,
-			UpdatedAt:    updatedAt,
-			IsDownloaded: isDl,
-			IsOnlineOnly: false,
-		})
 	}
 
 	return results, nil

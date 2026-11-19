@@ -3,6 +3,8 @@ package app
 import (
 	"context"
 	"fmt"
+	"regexp"
+	"strings"
 
 	"GameTrainerHub/internal/config"
 	"GameTrainerHub/internal/database"
@@ -118,8 +120,13 @@ func NewApp(cfg *config.AppConfig) (*App, error) {
 // Startup Wails 生命周期启动回调
 func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
-	a.EventEmitter = func(c context.Context, eventName string, data any) {
-		runtime.EventsEmit(c, eventName, data)
+	if a.EventEmitter == nil {
+		a.EventEmitter = func(c context.Context, eventName string, data any) {
+			defer func() {
+				_ = recover()
+			}()
+			runtime.EventsEmit(c, eventName, data)
+		}
 	}
 
 	// 恢复上次异常退出的未完成任务
@@ -158,13 +165,91 @@ func (a *App) Search(filter model.SearchFilter) ([]*model.SearchResult, error) {
 	return a.searchSvc.Search(ctx, &filter)
 }
 
-// GetTrainerDetail 获取原网修改器全部版本与说明
-func (a *App) GetTrainerDetail(detailURL string) (*model.Trainer, []*model.TrainerVersion, error) {
+// GetTrainerDetail 获取原网修改器全部版本与说明并持久化，保证返回具有数据库自增ID的版本列表
+func (a *App) GetTrainerDetail(detailURL string) (*model.Trainer, error) {
 	ctx := a.ctx
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return a.flingAdapter.GetDetail(ctx, detailURL)
+
+	cleanURL := strings.TrimSpace(detailURL)
+	if cleanURL == "" {
+		return nil, fmt.Errorf("detailURL cannot be empty")
+	}
+
+	// 1. 尝试从原网抓取最新版本信息
+	trainer, versions, err := a.flingAdapter.GetDetail(ctx, cleanURL)
+	if err == nil && trainer != nil {
+		gameNameEN := strings.TrimSuffix(trainer.TitleEN, " Trainer")
+		slug := slugify(gameNameEN)
+
+		game, _ := a.gameRepo.GetBySlug(ctx, slug)
+		var gameID int64
+		if game == nil {
+			var gameNameCN string
+			cnCandidates := a.translator.TranslateEnglishToChinese(gameNameEN)
+			if len(cnCandidates) > 0 {
+				gameNameCN = cnCandidates[0]
+			}
+			newGame := &model.Game{
+				Slug:   slug,
+				NameEN: gameNameEN,
+				NameCN: gameNameCN,
+			}
+			if cErr := a.gameRepo.Create(ctx, newGame); cErr == nil {
+				gameID = newGame.ID
+				aliases := a.translator.TranslateEnglishToChinese(gameNameEN)
+				py := a.translator.ToPinyin(gameNameCN)
+				pyInit := a.translator.ToPinyinInitials(gameNameCN)
+				_ = a.ftsRepo.IndexGame(ctx, gameID, gameNameEN, gameNameCN, strings.Join(aliases, " "), py, pyInit)
+			}
+		} else {
+			gameID = game.ID
+			if game.NameCN != "" && trainer.TitleCN == "" {
+				trainer.TitleCN = game.NameCN + " 修改器"
+			}
+		}
+
+		trainer.GameID = gameID
+		if trainer.TitleCN == "" {
+			cnCandidates := a.translator.TranslateEnglishToChinese(gameNameEN)
+			if len(cnCandidates) > 0 {
+				trainer.TitleCN = cnCandidates[0] + " 修改器"
+			}
+		}
+
+		// 事务入库或更新修改器与版本数据，赋予自增 ID
+		_ = a.trainerRepo.UpsertTrainerWithVersions(ctx, trainer, versions)
+
+		// 重新加载带下载状态与真实数据库自增 ID 的版本列表
+		dbVersions, vErr := a.trainerRepo.ListVersionsByTrainerID(ctx, trainer.ID)
+		if vErr == nil && len(dbVersions) > 0 {
+			trainer.Versions = dbVersions
+		} else {
+			trainer.Versions = versions
+		}
+		return trainer, nil
+	}
+
+	// 2. 若在线解析失败（如网络中断），优雅降级从本地数据库查找已有版本
+	existingTrainer, dbErr := a.trainerRepo.GetTrainerByDetailURL(ctx, cleanURL)
+	if dbErr == nil && existingTrainer != nil {
+		dbVersions, _ := a.trainerRepo.ListVersionsByTrainerID(ctx, existingTrainer.ID)
+		existingTrainer.Versions = dbVersions
+		return existingTrainer, nil
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch trainer detail: %w", err)
+	}
+	return nil, fmt.Errorf("trainer detail not found for URL: %s", cleanURL)
+}
+
+func slugify(name string) string {
+	lower := strings.ToLower(name)
+	reg := regexp.MustCompile(`[^a-z0-9]+`)
+	slug := reg.ReplaceAllString(lower, "-")
+	return strings.Trim(slug, "-")
 }
 
 // GetLatestTrainers 获取原网最近更新修改器

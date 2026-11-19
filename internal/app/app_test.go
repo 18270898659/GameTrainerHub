@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"GameTrainerHub/internal/config"
@@ -33,6 +34,9 @@ func TestAppIPC(t *testing.T) {
 		t.Fatalf("NewApp failed: %v", err)
 	}
 	defer app.Shutdown(context.Background())
+
+	// 单元测试中静默事件推送，避免 Wails 检查非法 context
+	app.EventEmitter = func(c context.Context, eventName string, data any) {}
 
 	ctx := context.Background()
 	app.Startup(ctx)
@@ -100,6 +104,199 @@ func TestAppIPC(t *testing.T) {
 	favList, err := app.ListFavorites()
 	if err != nil || len(favList) != 1 {
 		t.Fatalf("expected 1 favorite in list, got %d", len(favList))
+	}
+
+	// 8. 详情获取与空值安全性验证
+	_, emptyErr := app.GetTrainerDetail("")
+	if emptyErr == nil {
+		t.Error("expected error for empty detailURL, got nil")
+	}
+
+	// 创建已入库的修改器与版本
+	mockTrainer := &model.Trainer{
+		GameID:     game.ID,
+		SourceID:   "fling",
+		ExternalID: "cp2077-mock",
+		TitleEN:    "Cyberpunk 2077 Trainer",
+		DetailURL:  "https://flingtrainer.com/trainer/mock-cp2077/",
+	}
+	mockVer := &model.TrainerVersion{
+		VersionName:  "v2.12 Plus 30",
+		DownloadURL:  "https://flingtrainer.com/downloads/mock",
+		FeaturesText: "Num 1 - Infinite Health",
+	}
+	_ = app.trainerRepo.UpsertTrainerWithVersions(ctx, mockTrainer, []*model.TrainerVersion{mockVer})
+
+	// 验证降级查询本地库并能正确组装版本数据
+	detail, err := app.GetTrainerDetail("https://flingtrainer.com/trainer/mock-cp2077/")
+	if err != nil {
+		t.Fatalf("expected to fetch mock trainer from DB, got: %v", err)
+	}
+	if detail == nil || len(detail.Versions) == 0 {
+		t.Fatalf("expected detail with versions, got: %+v", detail)
+	}
+	if detail.Versions[0].VersionName != "v2.12 Plus 30" {
+		t.Errorf("expected version 'v2.12 Plus 30', got: %s", detail.Versions[0].VersionName)
+	}
+}
+
+func TestBlackMythWukongSearchDetailDownloadFlow(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gth_bmw_test_*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	cfg := &config.AppConfig{
+		BaseDir:                tempDir,
+		DataDir:                filepath.Join(tempDir, "data"),
+		DownloadDir:            filepath.Join(tempDir, "downloads"),
+		LogDir:                 filepath.Join(tempDir, "logs"),
+		MaxConcurrentDownloads: 2,
+		Theme:                  "dark",
+		Language:               "zh-CN",
+		LogLevel:               "debug",
+	}
+
+	app, err := NewApp(cfg)
+	if err != nil {
+		t.Fatalf("NewApp failed: %v", err)
+	}
+	defer app.Shutdown(context.Background())
+
+	// 单元测试中静默事件推送，避免 Wails 检查非法 context
+	app.EventEmitter = func(c context.Context, eventName string, data any) {}
+
+	ctx := context.Background()
+	app.Startup(ctx)
+
+	// 1. 搜索「黑神话：悟空」
+	results, err := app.Search(model.SearchFilter{Query: "黑神话：悟空", Page: 1, PageSize: 10})
+	if err != nil {
+		t.Fatalf("Search failed: %v", err)
+	}
+	if len(results) == 0 {
+		t.Fatal("expected search results for '黑神话：悟空'")
+	}
+
+	var bmwResult *model.SearchResult
+	for _, r := range results {
+		if strings.Contains(strings.ToLower(r.GameNameEN), "wukong") || strings.Contains(r.GameNameCN, "悟空") {
+			bmwResult = r
+			break
+		}
+	}
+	if bmwResult == nil {
+		t.Fatalf("expected to find Black Myth: Wukong in results, got %v", results)
+	}
+	t.Logf("Found search result: Title=%s, Slug=%s, DetailURL=%s", bmwResult.TrainerTitle, bmwResult.Slug, bmwResult.DetailURL)
+
+	// 2. 获取游戏版本信息 (GetTrainerDetail)
+	detail, err := app.GetTrainerDetail(bmwResult.DetailURL)
+	if err != nil {
+		t.Fatalf("GetTrainerDetail failed: %v", err)
+	}
+	if detail == nil {
+		t.Fatal("expected detail not to be nil")
+	}
+	if len(detail.Versions) == 0 {
+		t.Fatal("expected at least 1 version for Black Myth: Wukong")
+	}
+
+	firstVer := detail.Versions[0]
+	t.Logf("Fetched version: ID=%d, Name=%s, FeaturesLen=%d", firstVer.ID, firstVer.VersionName, len(firstVer.FeaturesText))
+	if firstVer.ID <= 0 {
+		t.Errorf("expected version to have valid database ID (> 0), got %d", firstVer.ID)
+	}
+	if firstVer.DownloadURL == "" {
+		t.Errorf("expected version download URL not to be empty")
+	}
+	if firstVer.FeaturesText == "" {
+		t.Errorf("expected version features text to be populated")
+	}
+
+	// 3. 点击下载该版本修改器 (StartDownload)
+	task, err := app.StartDownload(firstVer.ID)
+	if err != nil {
+		t.Fatalf("StartDownload failed: %v", err)
+	}
+	if task == nil || task.ID <= 0 {
+		t.Fatalf("expected valid download task created, got: %+v", task)
+	}
+	t.Logf("Download task created successfully: TaskID=%d, Status=%s, File=%s", task.ID, task.Status, task.FileName)
+}
+
+func TestOtherGamesRegressionFlow(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gth_reg_test_*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	cfg := &config.AppConfig{
+		BaseDir:                tempDir,
+		DataDir:                filepath.Join(tempDir, "data"),
+		DownloadDir:            filepath.Join(tempDir, "downloads"),
+		LogDir:                 filepath.Join(tempDir, "logs"),
+		MaxConcurrentDownloads: 2,
+		Theme:                  "dark",
+		Language:               "zh-CN",
+		LogLevel:               "debug",
+	}
+
+	app, err := NewApp(cfg)
+	if err != nil {
+		t.Fatalf("NewApp failed: %v", err)
+	}
+	defer app.Shutdown(context.Background())
+
+	app.EventEmitter = func(c context.Context, eventName string, data any) {}
+	ctx := context.Background()
+	app.Startup(ctx)
+
+	testCases := []struct {
+		name    string
+		query   string
+		matchEN string
+	}{
+		{"Cyberpunk 2077", "赛博朋克2077", "cyberpunk"},
+		{"Elden Ring", "老头环", "elden ring"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			results, err := app.Search(model.SearchFilter{Query: tc.query, Page: 1, PageSize: 5})
+			if err != nil {
+				t.Fatalf("[%s] Search failed: %v", tc.name, err)
+			}
+			if len(results) == 0 {
+				t.Fatalf("[%s] expected results for '%s'", tc.name, tc.query)
+			}
+
+			target := results[0]
+			if !strings.Contains(strings.ToLower(target.GameNameEN), tc.matchEN) {
+				t.Errorf("[%s] expected game name to contain '%s', got '%s'", tc.name, tc.matchEN, target.GameNameEN)
+			}
+
+			// 获取版本详情
+			detail, err := app.GetTrainerDetail(target.DetailURL)
+			if err != nil {
+				t.Fatalf("[%s] GetTrainerDetail failed: %v", tc.name, err)
+			}
+			if detail == nil || len(detail.Versions) == 0 {
+				t.Fatalf("[%s] expected detail with versions", tc.name)
+			}
+			t.Logf("[%s] Versions count: %d, Latest: %s", tc.name, len(detail.Versions), detail.Versions[0].VersionName)
+
+			// 创建下载任务
+			task, err := app.StartDownload(detail.Versions[0].ID)
+			if err != nil {
+				t.Fatalf("[%s] StartDownload failed: %v", tc.name, err)
+			}
+			if task.ID <= 0 {
+				t.Errorf("[%s] expected valid task id", tc.name)
+			}
+		})
 	}
 }
 
