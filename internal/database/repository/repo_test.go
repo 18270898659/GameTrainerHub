@@ -334,3 +334,67 @@ func TestSyncAndSettingRepository(t *testing.T) {
 	}
 }
 
+func TestSearchRepoAndVisitedGames(t *testing.T) {
+	db, cleanup := setupTestDB(t)
+	defer cleanup()
+
+	ctx := context.Background()
+	searchRepo := NewSearchRepository(db)
+	gameRepo := NewGameRepository(db)
+
+	// 1. 搜索历史测试
+	if err := searchRepo.AddHistory(ctx, "黑神话"); err != nil {
+		t.Fatalf("failed to add search history: %v", err)
+	}
+	if err := searchRepo.AddHistory(ctx, "赛博朋克"); err != nil {
+		t.Fatalf("failed to add search history: %v", err)
+	}
+	// 重复添加同一关键词应更新时间并不报错
+	if err := searchRepo.AddHistory(ctx, "黑神话"); err != nil {
+		t.Fatalf("failed to update search history: %v", err)
+	}
+
+	hist, err := searchRepo.ListHistory(ctx, 10)
+	if err != nil || len(hist) != 2 {
+		t.Fatalf("expected 2 history keywords, got %d (err: %v)", len(hist), err)
+	}
+	if hist[0] != "黑神话" {
+		t.Errorf("expected '黑神话' to be first, got '%s'", hist[0])
+	}
+
+	// 删除单条
+	if err := searchRepo.RemoveHistory(ctx, "赛博朋克"); err != nil {
+		t.Fatalf("failed to remove history: %v", err)
+	}
+	hist, _ = searchRepo.ListHistory(ctx, 10)
+	if len(hist) != 1 {
+		t.Errorf("expected 1 history after remove, got %d", len(hist))
+	}
+
+	// 清空历史
+	if err := searchRepo.ClearHistory(ctx); err != nil {
+		t.Fatalf("failed to clear history: %v", err)
+	}
+	hist, _ = searchRepo.ListHistory(ctx, 10)
+	if len(hist) != 0 {
+		t.Errorf("expected 0 history after clear, got %d", len(hist))
+	}
+
+	// 2. 访问历史测试
+	g := &model.Game{Slug: "elden-ring", NameEN: "ELDEN RING", NameCN: "艾尔登法环"}
+	if err := gameRepo.Create(ctx, g); err != nil {
+		t.Fatalf("failed to create game: %v", err)
+	}
+
+	if err := gameRepo.RecordVisit(ctx, g.ID); err != nil {
+		t.Fatalf("failed to record visit: %v", err)
+	}
+	visited, err := gameRepo.ListVisited(ctx, 5)
+	if err != nil || len(visited) != 1 {
+		t.Fatalf("expected 1 visited game, got %d (err: %v)", len(visited), err)
+	}
+	if visited[0].Slug != "elden-ring" {
+		t.Errorf("expected visited game slug 'elden-ring', got '%s'", visited[0].Slug)
+	}
+}
+

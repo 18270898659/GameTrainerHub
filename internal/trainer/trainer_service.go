@@ -33,10 +33,12 @@ func NewTrainerService(
 }
 
 type LocalTrainerDetail struct {
-	LocalTrainer *model.LocalTrainer   `json:"local_trainer"`
-	Game         *model.Game           `json:"game"`
-	Version      *model.TrainerVersion `json:"version,omitempty"`
-	FileExists   bool                  `json:"file_exists"`
+	LocalTrainer      *model.LocalTrainer   `json:"local_trainer"`
+	Game              *model.Game           `json:"game"`
+	Version           *model.TrainerVersion `json:"version,omitempty"`
+	FileExists        bool                  `json:"file_exists"`
+	IsRunning         bool                  `json:"is_running"`
+	TargetGameVersion string                `json:"target_game_version,omitempty"`
 }
 
 // ListLocalTrainers 列出所有已下载或手动导入的本地修改器
@@ -60,11 +62,110 @@ func (s *TrainerService) ListLocalTrainers(ctx context.Context) ([]*LocalTrainer
 		if lt.VersionID != nil {
 			if ver, err := s.trainerRepo.GetVersionByID(ctx, *lt.VersionID); err == nil {
 				d.Version = ver
+				d.TargetGameVersion = ver.TargetGameVersion
 			}
 		}
 		details = append(details, d)
 	}
 	return details, nil
+}
+
+// GetRecentTrainers 获取最近运行的修改器列表（若未运行过则按创建时间倒序）
+func (s *TrainerService) GetRecentTrainers(ctx context.Context, limit int) ([]*LocalTrainerDetail, error) {
+	all, err := s.ListLocalTrainers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		limit = 10
+	}
+	if len(all) > limit {
+		return all[:limit], nil
+	}
+	return all, nil
+}
+
+// VerifyTrainerIntegrity 校验本地修改器文件 SHA-256 完整性
+func (s *TrainerService) VerifyTrainerIntegrity(ctx context.Context, localTrainerID int64) (*model.IntegrityResult, error) {
+	all, err := s.localRepo.ListAll(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var target *model.LocalTrainer
+	for _, lt := range all {
+		if lt.ID == localTrainerID {
+			target = lt
+			break
+		}
+	}
+	if target == nil {
+		return nil, fmt.Errorf("local trainer with ID %d not found", localTrainerID)
+	}
+
+	res := &model.IntegrityResult{
+		TrainerID:      localTrainerID,
+		FilePath:       target.FilePath,
+		ExpectedSHA256: target.SHA256,
+	}
+
+	fi, err := os.Stat(target.FilePath)
+	if err != nil {
+		res.FileExists = false
+		res.IsValid = false
+		res.Message = "修改器本地文件不存在或已被移动"
+		return res, nil
+	}
+
+	res.FileExists = true
+	res.FileSize = fi.Size()
+
+	actualHash, err := hashFile(target.FilePath)
+	if err != nil {
+		res.IsValid = false
+		res.Message = fmt.Sprintf("计算文件哈希失败: %v", err)
+		return res, nil
+	}
+	res.ActualSHA256 = actualHash
+
+	if strings.EqualFold(res.ActualSHA256, res.ExpectedSHA256) {
+		res.IsValid = true
+		res.Message = "文件哈希校验完全一致，完整性验证通过"
+	} else {
+		res.IsValid = false
+		res.Message = "文件哈希与记录不一致，文件可能已被篡改或损坏"
+	}
+	return res, nil
+}
+
+// RelocateTrainer 修改器文件重新定位（当原路径失效时更新新路径并重新计算哈希与大小）
+func (s *TrainerService) RelocateTrainer(ctx context.Context, localTrainerID int64, newFilePath string) error {
+	cleanPath := filepath.Clean(strings.TrimSpace(newFilePath))
+	fi, err := os.Stat(cleanPath)
+	if err != nil {
+		return fmt.Errorf("目标文件不存在: %w", err)
+	}
+	if !strings.HasSuffix(strings.ToLower(cleanPath), ".exe") {
+		return fmt.Errorf("重新定位的目标文件必须是 .exe 可执行文件")
+	}
+
+	newHash, err := hashFile(cleanPath)
+	if err != nil {
+		return fmt.Errorf("计算新文件哈希失败: %w", err)
+	}
+
+	all, err := s.localRepo.ListAll(ctx)
+	if err != nil {
+		return err
+	}
+	for _, lt := range all {
+		if lt.ID == localTrainerID {
+			lt.FilePath = cleanPath
+			lt.FileSize = fi.Size()
+			lt.SHA256 = newHash
+			return s.localRepo.Update(ctx, lt)
+		}
+	}
+	return fmt.Errorf("未找到本地修改器 ID %d", localTrainerID)
 }
 
 // ImportCustomTrainer 手动导入本地现有的修改器 EXE

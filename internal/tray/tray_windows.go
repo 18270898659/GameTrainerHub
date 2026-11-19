@@ -3,8 +3,10 @@
 package tray
 
 import (
+	"fmt"
 	"os"
 	"runtime"
+	"strings"
 	"sync"
 	"syscall"
 	"unsafe"
@@ -39,6 +41,9 @@ var (
 	procExtractIconExW    = modShell32.NewProc("ExtractIconExW")
 
 	procGetModuleHandleW  = modKernel32.NewProc("GetModuleHandleW")
+
+	procRegisterHotKey   = modUser32.NewProc("RegisterHotKey")
+	procUnregisterHotKey = modUser32.NewProc("UnregisterHotKey")
 )
 
 const (
@@ -49,6 +54,7 @@ const (
 	WM_LBUTTONUP     = 0x0202
 	WM_LBUTTONDBLCLK = 0x0203
 	WM_RBUTTONUP     = 0x0205
+	WM_HOTKEY        = 0x0312
 
 	NIM_ADD    = 0x00000000
 	NIM_MODIFY = 0x00000001
@@ -57,6 +63,20 @@ const (
 	NIF_MESSAGE = 0x00000001
 	NIF_ICON    = 0x00000002
 	NIF_TIP     = 0x00000004
+	NIF_INFO    = 0x00000010
+
+	NIIF_INFO    = 0x00000001
+	NIIF_WARNING = 0x00000002
+	NIIF_ERROR   = 0x00000003
+
+	MOD_ALT      = 0x0001
+	MOD_CONTROL  = 0x0002
+	MOD_SHIFT    = 0x0004
+	MOD_WIN      = 0x0008
+	MOD_NOREPEAT = 0x4000
+
+	HOTKEY_ID_TOGGLE    = 1001
+	HOTKEY_ID_DOWNLOADS = 1002
 
 	MF_STRING    = 0x00000000
 	MF_SEPARATOR = 0x00000800
@@ -116,17 +136,19 @@ type MSG struct {
 
 // TrayManager Windows 原生系统托盘管理器
 type TrayManager struct {
-	hwnd        windows.Handle
-	hIcon       windows.Handle
-	nid         NOTIFYICONDATAW
-	onShow      func()
-	onQuit      func()
-	showText    string
-	quitText    string
-	isAdded     bool
-	mu          sync.Mutex
-	readyChan   chan struct{}
-	stoppedChan chan struct{}
+	hwnd              windows.Handle
+	hIcon             windows.Handle
+	nid               NOTIFYICONDATAW
+	onShow            func()
+	onQuit            func()
+	onHotkeyToggle    func()
+	onHotkeyDownloads func()
+	showText          string
+	quitText          string
+	isAdded           bool
+	mu                sync.Mutex
+	readyChan         chan struct{}
+	stoppedChan       chan struct{}
 }
 
 var (
@@ -181,6 +203,10 @@ func Destroy() {
 	defer instMu.Unlock()
 	if instance != nil {
 		instance.mu.Lock()
+		if instance.hwnd != 0 {
+			_, _, _ = procUnregisterHotKey.Call(uintptr(instance.hwnd), uintptr(HOTKEY_ID_TOGGLE))
+			_, _, _ = procUnregisterHotKey.Call(uintptr(instance.hwnd), uintptr(HOTKEY_ID_DOWNLOADS))
+		}
 		if instance.isAdded && instance.nid.HWnd != 0 {
 			_, _, _ = procShellNotifyIconW.Call(uintptr(NIM_DELETE), uintptr(unsafe.Pointer(&instance.nid)))
 			instance.isAdded = false
@@ -196,6 +222,167 @@ func Destroy() {
 		<-instance.stoppedChan
 		instance = nil
 	}
+}
+
+// ShowNotification 发送 Windows 系统托盘气泡/横幅通知
+func ShowNotification(title, message string, isError bool) error {
+	instMu.Lock()
+	defer instMu.Unlock()
+	if instance == nil || !instance.isAdded || instance.hwnd == 0 {
+		return fmt.Errorf("tray is not initialized")
+	}
+
+	instance.mu.Lock()
+	defer instance.mu.Unlock()
+
+	nid := instance.nid
+	nid.UFlags = NIF_INFO
+
+	titleU16, _ := windows.UTF16FromString(title)
+	msgU16, _ := windows.UTF16FromString(message)
+
+	copy(nid.SzInfoTitle[:], titleU16)
+	copy(nid.SzInfo[:], msgU16)
+
+	if isError {
+		nid.DwInfoFlags = NIIF_ERROR
+	} else {
+		nid.DwInfoFlags = NIIF_INFO
+	}
+
+	r, _, _ := procShellNotifyIconW.Call(uintptr(NIM_MODIFY), uintptr(unsafe.Pointer(&nid)))
+	if r == 0 {
+		return fmt.Errorf("failed to show tray notification")
+	}
+	return nil
+}
+
+// SetHotkeyHandlers 注册快捷键事件回调
+func SetHotkeyHandlers(onToggle, onDownloads func()) {
+	instMu.Lock()
+	defer instMu.Unlock()
+	if instance != nil {
+		instance.mu.Lock()
+		instance.onHotkeyToggle = onToggle
+		instance.onHotkeyDownloads = onDownloads
+		instance.mu.Unlock()
+	}
+}
+
+// UpdateHotkeys 动态注册或注销全局快捷键
+func UpdateHotkeys(enabled bool, toggleStr, dlStr string) error {
+	instMu.Lock()
+	defer instMu.Unlock()
+	if instance == nil || instance.hwnd == 0 {
+		return nil
+	}
+
+	// 先注销已有快捷键
+	_, _, _ = procUnregisterHotKey.Call(uintptr(instance.hwnd), uintptr(HOTKEY_ID_TOGGLE))
+	_, _, _ = procUnregisterHotKey.Call(uintptr(instance.hwnd), uintptr(HOTKEY_ID_DOWNLOADS))
+
+	if !enabled {
+		return nil
+	}
+
+	var firstErr error
+	if toggleStr != "" {
+		mod, vk, err := parseHotkeyString(toggleStr)
+		if err != nil {
+			firstErr = err
+		} else {
+			r, _, _ := procRegisterHotKey.Call(uintptr(instance.hwnd), uintptr(HOTKEY_ID_TOGGLE), uintptr(mod), uintptr(vk))
+			if r == 0 {
+				firstErr = fmt.Errorf("快捷键已被系统或其他应用占用: %s", toggleStr)
+			}
+		}
+	}
+
+	if dlStr != "" {
+		mod, vk, err := parseHotkeyString(dlStr)
+		if err != nil && firstErr == nil {
+			firstErr = err
+		} else if err == nil {
+			r, _, _ := procRegisterHotKey.Call(uintptr(instance.hwnd), uintptr(HOTKEY_ID_DOWNLOADS), uintptr(mod), uintptr(vk))
+			if r == 0 && firstErr == nil {
+				firstErr = fmt.Errorf("快捷键已被系统或其他应用占用: %s", dlStr)
+			}
+		}
+	}
+
+	return firstErr
+}
+
+// CheckHotkeyConflict 检测快捷键是否与当前系统产生冲突
+func CheckHotkeyConflict(hotkeyStr string) (bool, error) {
+	instMu.Lock()
+	defer instMu.Unlock()
+	if instance == nil || instance.hwnd == 0 {
+		return false, nil
+	}
+
+	mod, vk, err := parseHotkeyString(hotkeyStr)
+	if err != nil {
+		return false, err
+	}
+
+	const testID = 9999
+	r, _, _ := procRegisterHotKey.Call(uintptr(instance.hwnd), uintptr(testID), uintptr(mod), uintptr(vk))
+	if r == 0 {
+		return true, nil // 注册失败表示被其他程序占用了
+	}
+	_, _, _ = procUnregisterHotKey.Call(uintptr(instance.hwnd), uintptr(testID))
+	return false, nil
+}
+
+func parseHotkeyString(s string) (uint32, uint32, error) {
+	parts := strings.Split(s, "+")
+	var mod uint32 = MOD_NOREPEAT
+	var vk uint32
+
+	for _, p := range parts {
+		trimmed := strings.TrimSpace(strings.ToLower(p))
+		switch trimmed {
+		case "alt":
+			mod |= MOD_ALT
+		case "ctrl", "control":
+			mod |= MOD_CONTROL
+		case "shift":
+			mod |= MOD_SHIFT
+		case "win", "super":
+			mod |= MOD_WIN
+		default:
+			upper := strings.ToUpper(trimmed)
+			if len(upper) == 1 && upper[0] >= 'A' && upper[0] <= 'Z' {
+				vk = uint32(upper[0])
+			} else if len(upper) == 1 && upper[0] >= '0' && upper[0] <= '9' {
+				vk = uint32(upper[0])
+			} else if strings.HasPrefix(upper, "F") && len(upper) >= 2 {
+				num := 0
+				for _, ch := range upper[1:] {
+					if ch >= '0' && ch <= '9' {
+						num = num*10 + int(ch-'0')
+					}
+				}
+				if num >= 1 && num <= 12 {
+					vk = uint32(0x70 + num - 1)
+				}
+			} else if upper == "SPACE" {
+				vk = 0x20
+			} else if upper == "ESC" || upper == "ESCAPE" {
+				vk = 0x1B
+			} else if upper == "TAB" {
+				vk = 0x09
+			} else {
+				return 0, 0, fmt.Errorf("不支持的按键: %s", p)
+			}
+		}
+	}
+
+	if vk == 0 {
+		return 0, 0, fmt.Errorf("快捷键必须包含一个主按键: %s", s)
+	}
+	return mod, vk, nil
 }
 
 func (tm *TrayManager) messageLoop() {
@@ -214,6 +401,19 @@ func (tm *TrayManager) messageLoop() {
 
 	wndProcCallback := syscall.NewCallback(func(hWnd windows.Handle, msg uint32, wParam, lParam uintptr) uintptr {
 		switch msg {
+		case WM_HOTKEY:
+			switch wParam {
+			case HOTKEY_ID_TOGGLE:
+				if tm.onHotkeyToggle != nil {
+					go tm.onHotkeyToggle()
+				}
+				return 0
+			case HOTKEY_ID_DOWNLOADS:
+				if tm.onHotkeyDownloads != nil {
+					go tm.onHotkeyDownloads()
+				}
+				return 0
+			}
 		case WM_TRAYICON:
 			switch lParam {
 			case WM_LBUTTONUP, WM_LBUTTONDBLCLK:

@@ -34,6 +34,10 @@ type DownloadManager struct {
 	activeCount int
 	ctx         context.Context
 	cancel      context.CancelFunc
+
+	// 任务生命周期回调（用于全局通知与统计）
+	OnTaskComplete func(task *model.DownloadTask)
+	OnTaskFail     func(task *model.DownloadTask, err error)
 }
 
 func NewDownloadManager(
@@ -115,8 +119,42 @@ func (m *DownloadManager) RecoverInterruptedTasks(ctx context.Context) error {
 	return nil
 }
 
-// CreateTask 创建新下载任务并入队
+// CreateTask 创建新下载任务并入队（包含重复任务检测与状态恢复）
 func (m *DownloadManager) CreateTask(ctx context.Context, versionID int64, downloadDir string) (*model.DownloadTask, error) {
+	// 0. 重复任务检测与状态自愈
+	existingTasks, err := m.dlRepo.ListTasks(ctx, "")
+	if err == nil {
+		for _, ext := range existingTasks {
+			if ext.VersionID == versionID {
+				switch ext.Status {
+				case model.DownloadStatusDownloading, model.DownloadStatusPending:
+					logger.Info("Download task already active, returning existing", "task_id", ext.ID)
+					return ext, nil
+				case model.DownloadStatusPaused, model.DownloadStatusRetrying:
+					_ = m.ResumeTask(ext.ID)
+					return ext, nil
+				case model.DownloadStatusCompleted:
+					if _, statErr := os.Stat(ext.SavePath); statErr == nil {
+						logger.Info("Trainer version already completed and file exists", "task_id", ext.ID, "path", ext.SavePath)
+						return ext, nil
+					}
+					// 磁盘文件已被删除，重置任务状态并从头重新下载
+					ext.DownloadedBytes = 0
+					ext.Progress = 0
+					ext.Status = model.DownloadStatusPending
+					ext.ErrorMsg = ""
+					_ = m.dlRepo.UpdateTask(ctx, ext)
+					m.taskQueue <- ext.ID
+					m.notifyListeners(ext)
+					return ext, nil
+				case model.DownloadStatusFailed:
+					_ = m.ResumeTask(ext.ID)
+					return ext, nil
+				}
+			}
+		}
+	}
+
 	version, err := m.trainerRepo.GetVersionByID(ctx, versionID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get trainer version: %w", err)
@@ -161,6 +199,34 @@ func (m *DownloadManager) CreateTask(ctx context.Context, versionID int64, downl
 	m.taskQueue <- task.ID
 	m.notifyListeners(task)
 	return task, nil
+}
+
+// PauseAllTasks 暂停所有进行中或排队中的下载任务
+func (m *DownloadManager) PauseAllTasks(ctx context.Context) error {
+	tasks, err := m.dlRepo.ListTasks(ctx, "")
+	if err != nil {
+		return err
+	}
+	for _, t := range tasks {
+		if t.Status == model.DownloadStatusDownloading || t.Status == model.DownloadStatusPending || t.Status == model.DownloadStatusRetrying {
+			_ = m.PauseTask(t.ID)
+		}
+	}
+	return nil
+}
+
+// ResumeAllTasks 继续所有暂停或失败的下载任务
+func (m *DownloadManager) ResumeAllTasks(ctx context.Context) error {
+	tasks, err := m.dlRepo.ListTasks(ctx, "")
+	if err != nil {
+		return err
+	}
+	for _, t := range tasks {
+		if t.Status == model.DownloadStatusPaused || t.Status == model.DownloadStatusFailed {
+			_ = m.ResumeTask(t.ID)
+		}
+	}
+	return nil
 }
 
 // PauseTask 暂停正在执行的下载任务
@@ -370,6 +436,9 @@ func (m *DownloadManager) processTask(taskID int64) {
 			task.Status = model.DownloadStatusFailed
 			task.ErrorMsg = fmt.Sprintf("下载失败: %v", err)
 			logger.Error("Download task failed permanently after max retries", "task_id", task.ID, "err", err)
+			if m.OnTaskFail != nil {
+				m.OnTaskFail(task, err)
+			}
 		}
 		_ = m.dlRepo.UpdateTask(context.Background(), task)
 		m.notifyListeners(task)
@@ -384,6 +453,9 @@ func (m *DownloadManager) processTask(taskID int64) {
 	task.SpeedBytesPerSec = 0
 	_ = m.dlRepo.UpdateTask(context.Background(), task)
 	m.notifyListeners(task)
+	if m.OnTaskComplete != nil {
+		m.OnTaskComplete(task)
+	}
 
 	// 1. 记入下载历史表
 	hist := &model.DownloadHistory{

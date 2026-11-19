@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"GameTrainerHub/internal/config"
+	"GameTrainerHub/internal/logger"
 	"GameTrainerHub/internal/model"
 )
 
@@ -379,5 +380,110 @@ func TestWindowAndDirectorySettings(t *testing.T) {
 	if preventAfterQuit {
 		t.Errorf("expected OnBeforeClose to NOT prevent close when Quitting=true, got %v", preventAfterQuit)
 	}
+}
+
+func TestPhase2IPCMethods(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gth_p2_test_*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	cfg := &config.AppConfig{
+		BaseDir:                tempDir,
+		DataDir:                filepath.Join(tempDir, "data"),
+		DownloadDir:            filepath.Join(tempDir, "downloads"),
+		LogDir:                 filepath.Join(tempDir, "logs"),
+		MaxConcurrentDownloads: 3,
+		Theme:                  "dark",
+		Language:               "zh-CN",
+		LogLevel:               "debug",
+		CloseToTray:            true,
+	}
+
+	app, err := NewApp(cfg)
+	if err != nil {
+		t.Fatalf("NewApp failed: %v", err)
+	}
+	defer app.Shutdown(context.Background())
+
+	// 1. 搜索历史 IPC
+	if err := app.AddSearchHistory("黑神话：悟空"); err != nil {
+		t.Fatalf("AddSearchHistory failed: %v", err)
+	}
+	if err := app.AddSearchHistory("艾尔登法环"); err != nil {
+		t.Fatalf("AddSearchHistory failed: %v", err)
+	}
+	hist, err := app.GetSearchHistory(10)
+	if err != nil || len(hist) != 2 {
+		t.Fatalf("expected 2 history items, got %d (err: %v)", len(hist), err)
+	}
+	if err := app.RemoveSearchHistory("艾尔登法环"); err != nil {
+		t.Fatalf("RemoveSearchHistory failed: %v", err)
+	}
+	histAfter, _ := app.GetSearchHistory(10)
+	if len(histAfter) != 1 {
+		t.Errorf("expected 1 history item after remove, got %d", len(histAfter))
+	}
+	_ = app.ClearSearchHistory()
+
+	// 2. 访问历史 IPC
+	game := &model.Game{Slug: "wukong", NameEN: "Black Myth: Wukong", NameCN: "黑神话：悟空"}
+	_ = app.gameRepo.Create(context.Background(), game)
+	if err := app.RecordGameVisit(game.ID); err != nil {
+		t.Fatalf("RecordGameVisit failed: %v", err)
+	}
+	recentGames, err := app.GetRecentGames(5)
+	if err != nil || len(recentGames) != 1 {
+		t.Fatalf("expected 1 recent game, got %d (err: %v)", len(recentGames), err)
+	}
+
+	// 3. 诊断与日志 IPC
+	logger.Info("Diagnostics test entry", "module", "test", "token", "super_secret_123")
+	report, err := app.DiagnoseEnvironment()
+	if err != nil {
+		t.Fatalf("DiagnoseEnvironment failed: %v", err)
+	}
+	if report == nil {
+		t.Fatal("expected non-nil diagnostic report")
+	}
+
+	exportPath, err := app.ExportDiagnostics()
+	if err != nil {
+		t.Fatalf("ExportDiagnostics failed: %v", err)
+	}
+	if _, err := os.Stat(exportPath); os.IsNotExist(err) {
+		t.Errorf("export file %s does not exist", exportPath)
+	}
+
+	logs, err := app.GetRecentLogs(50, "")
+	if err != nil || len(logs) == 0 {
+		t.Errorf("expected logs, got %d (err: %v)", len(logs), err)
+	}
+
+	// 4. 配置导出、重置与导入 IPC
+	jsonExport, err := app.ExportConfig()
+	if err != nil || len(jsonExport) == 0 {
+		t.Fatalf("ExportConfig failed: %v", err)
+	}
+	if err := app.ResetConfig(); err != nil {
+		t.Fatalf("ResetConfig failed: %v", err)
+	}
+	if err := app.ImportConfig(jsonExport); err != nil {
+		t.Fatalf("ImportConfig failed: %v", err)
+	}
+
+	// 5. 检查更新 IPC
+	updateRes, err := app.CheckForUpdates()
+	if err != nil || updateRes == nil {
+		t.Fatalf("CheckForUpdates failed: %v", err)
+	}
+	if updateRes.CurrentVersion != "1.0.0" {
+		t.Errorf("expected 1.0.0, got %s", updateRes.CurrentVersion)
+	}
+
+	// 6. 批量下载暂停与恢复
+	_ = app.PauseAllDownloads()
+	_ = app.ResumeAllDownloads()
 }
 

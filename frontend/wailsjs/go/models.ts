@@ -1,6 +1,7 @@
 export namespace config {
 	
 	export class AppConfig {
+	    config_version: number;
 	    base_dir: string;
 	    data_dir: string;
 	    download_dir: string;
@@ -20,6 +21,13 @@ export namespace config {
 	    remember_window_position: boolean;
 	    window_x: number;
 	    window_y: number;
+	    notify_on_download_complete: boolean;
+	    notify_on_download_failed: boolean;
+	    notify_on_trainer_update: boolean;
+	    global_hotkeys_enabled: boolean;
+	    hotkey_toggle_window: string;
+	    hotkey_open_downloads: string;
+	    auto_backup_config: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppConfig(source);
@@ -27,6 +35,7 @@ export namespace config {
 	
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.config_version = source["config_version"];
 	        this.base_dir = source["base_dir"];
 	        this.data_dir = source["data_dir"];
 	        this.download_dir = source["download_dir"];
@@ -46,6 +55,13 @@ export namespace config {
 	        this.remember_window_position = source["remember_window_position"];
 	        this.window_x = source["window_x"];
 	        this.window_y = source["window_y"];
+	        this.notify_on_download_complete = source["notify_on_download_complete"];
+	        this.notify_on_download_failed = source["notify_on_download_failed"];
+	        this.notify_on_trainer_update = source["notify_on_trainer_update"];
+	        this.global_hotkeys_enabled = source["global_hotkeys_enabled"];
+	        this.hotkey_toggle_window = source["hotkey_toggle_window"];
+	        this.hotkey_open_downloads = source["hotkey_open_downloads"];
+	        this.auto_backup_config = source["auto_backup_config"];
 	    }
 	}
 
@@ -88,6 +104,85 @@ export namespace launcher {
 
 export namespace model {
 	
+	export class NetworkDiagnosis {
+	    target_host: string;
+	    dns_resolved: boolean;
+	    ip_addresses: string;
+	    http_status: number;
+	    latency_ms: number;
+	    is_reachable: boolean;
+	    error_message?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new NetworkDiagnosis(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.target_host = source["target_host"];
+	        this.dns_resolved = source["dns_resolved"];
+	        this.ip_addresses = source["ip_addresses"];
+	        this.http_status = source["http_status"];
+	        this.latency_ms = source["latency_ms"];
+	        this.is_reachable = source["is_reachable"];
+	        this.error_message = source["error_message"];
+	    }
+	}
+	export class DiagnosticReport {
+	    // Go type: time
+	    generated_at: any;
+	    app_version: string;
+	    os: string;
+	    arch: string;
+	    download_dir: string;
+	    download_dir_writable: boolean;
+	    available_disk_bytes: number;
+	    db_path: string;
+	    db_integrity_ok: boolean;
+	    network?: NetworkDiagnosis;
+	    active_downloads: number;
+	    local_trainers_count: number;
+	    favorites_count: number;
+	
+	    static createFrom(source: any = {}) {
+	        return new DiagnosticReport(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.generated_at = this.convertValues(source["generated_at"], null);
+	        this.app_version = source["app_version"];
+	        this.os = source["os"];
+	        this.arch = source["arch"];
+	        this.download_dir = source["download_dir"];
+	        this.download_dir_writable = source["download_dir_writable"];
+	        this.available_disk_bytes = source["available_disk_bytes"];
+	        this.db_path = source["db_path"];
+	        this.db_integrity_ok = source["db_integrity_ok"];
+	        this.network = this.convertValues(source["network"], NetworkDiagnosis);
+	        this.active_downloads = source["active_downloads"];
+	        this.local_trainers_count = source["local_trainers_count"];
+	        this.favorites_count = source["favorites_count"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
 	export class DownloadHistory {
 	    id: number;
 	    task_id: number;
@@ -363,6 +458,32 @@ export namespace model {
 		    return a;
 		}
 	}
+	export class IntegrityResult {
+	    trainer_id: number;
+	    file_path: string;
+	    file_exists: boolean;
+	    expected_sha256: string;
+	    actual_sha256: string;
+	    file_size: number;
+	    is_valid: boolean;
+	    message: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new IntegrityResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.trainer_id = source["trainer_id"];
+	        this.file_path = source["file_path"];
+	        this.file_exists = source["file_exists"];
+	        this.expected_sha256 = source["expected_sha256"];
+	        this.actual_sha256 = source["actual_sha256"];
+	        this.file_size = source["file_size"];
+	        this.is_valid = source["is_valid"];
+	        this.message = source["message"];
+	    }
+	}
 	export class LocalTrainer {
 	    id: number;
 	    game_id: number;
@@ -415,6 +536,46 @@ export namespace model {
 		    return a;
 		}
 	}
+	export class LogEntry {
+	    // Go type: time
+	    timestamp: any;
+	    level: string;
+	    category: string;
+	    message: string;
+	    details?: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new LogEntry(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.timestamp = this.convertValues(source["timestamp"], null);
+	        this.level = source["level"];
+	        this.category = source["category"];
+	        this.message = source["message"];
+	        this.details = source["details"];
+	    }
+	
+		convertValues(a: any, classs: any, asMap: boolean = false): any {
+		    if (!a) {
+		        return a;
+		    }
+		    if (a.slice && a.map) {
+		        return (a as any[]).map(elem => this.convertValues(elem, classs));
+		    } else if ("object" === typeof a) {
+		        if (asMap) {
+		            for (const key of Object.keys(a)) {
+		                a[key] = new classs(a[key]);
+		            }
+		            return a;
+		        }
+		        return new classs(a);
+		    }
+		    return a;
+		}
+	}
+	
 	export class SearchFilter {
 	    query: string;
 	    source: string;
@@ -449,6 +610,7 @@ export namespace model {
 	    updated_at: any;
 	    is_downloaded: boolean;
 	    is_online_only: boolean;
+	    is_favorite: boolean;
 	    score: number;
 	
 	    static createFrom(source: any = {}) {
@@ -469,6 +631,7 @@ export namespace model {
 	        this.updated_at = this.convertValues(source["updated_at"], null);
 	        this.is_downloaded = source["is_downloaded"];
 	        this.is_online_only = source["is_online_only"];
+	        this.is_favorite = source["is_favorite"];
 	        this.score = source["score"];
 	    }
 	
@@ -539,6 +702,31 @@ export namespace model {
 		}
 	}
 	
+	
+	export class UpdateCheckResult {
+	    has_update: boolean;
+	    current_version: string;
+	    latest_version: string;
+	    release_notes: string;
+	    download_url: string;
+	    package_sha256: string;
+	    published_at: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new UpdateCheckResult(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.has_update = source["has_update"];
+	        this.current_version = source["current_version"];
+	        this.latest_version = source["latest_version"];
+	        this.release_notes = source["release_notes"];
+	        this.download_url = source["download_url"];
+	        this.package_sha256 = source["package_sha256"];
+	        this.published_at = source["published_at"];
+	    }
+	}
 
 }
 
@@ -549,6 +737,8 @@ export namespace trainer {
 	    game?: model.Game;
 	    version?: model.TrainerVersion;
 	    file_exists: boolean;
+	    is_running: boolean;
+	    target_game_version?: string;
 	
 	    static createFrom(source: any = {}) {
 	        return new LocalTrainerDetail(source);
@@ -560,6 +750,8 @@ export namespace trainer {
 	        this.game = this.convertValues(source["game"], model.Game);
 	        this.version = this.convertValues(source["version"], model.TrainerVersion);
 	        this.file_exists = source["file_exists"];
+	        this.is_running = source["is_running"];
+	        this.target_game_version = source["target_game_version"];
 	    }
 	
 		convertValues(a: any, classs: any, asMap: boolean = false): any {

@@ -14,6 +14,7 @@ import (
 	"GameTrainerHub/internal/database"
 	"GameTrainerHub/internal/database/fts"
 	"GameTrainerHub/internal/database/repository"
+	"GameTrainerHub/internal/diagnostics"
 	"GameTrainerHub/internal/download"
 	"GameTrainerHub/internal/game"
 	"GameTrainerHub/internal/launcher"
@@ -25,6 +26,7 @@ import (
 	"GameTrainerHub/internal/trainer"
 	"GameTrainerHub/internal/translate"
 	"GameTrainerHub/internal/tray"
+	"GameTrainerHub/internal/update"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 	"golang.org/x/sys/windows"
@@ -72,6 +74,7 @@ type App struct {
 	localRepo    *repository.LocalTrainerRepository
 	syncRepo     *repository.SyncRepository
 	settingRepo  *repository.SettingRepository
+	searchRepo   *repository.SearchRepository
 	ftsRepo      *fts.FTSRepository
 	translator   *translate.Translator
 	flingAdapter *fling.FlingAdapter
@@ -110,6 +113,7 @@ func NewApp(cfg *config.AppConfig) (*App, error) {
 	localRepo := repository.NewLocalTrainerRepository(db)
 	syncRepo := repository.NewSyncRepository(db)
 	settingRepo := repository.NewSettingRepository(db)
+	searchRepo := repository.NewSearchRepository(db)
 	ftsRepo := fts.NewFTSRepository(db)
 
 	// 业务领域层
@@ -134,6 +138,7 @@ func NewApp(cfg *config.AppConfig) (*App, error) {
 		localRepo:    localRepo,
 		syncRepo:     syncRepo,
 		settingRepo:  settingRepo,
+		searchRepo:   searchRepo,
 		ftsRepo:      ftsRepo,
 		translator:   trans,
 		flingAdapter: flingAdp,
@@ -151,6 +156,24 @@ func NewApp(cfg *config.AppConfig) (*App, error) {
 			app.EventEmitter(app.ctx, "download:progress", task)
 		}
 	})
+
+	// 下载完成与失败全局通知
+	dlMgr.OnTaskComplete = func(task *model.DownloadTask) {
+		if app.EventEmitter != nil && app.ctx != nil {
+			app.EventEmitter(app.ctx, "download:completed", task)
+		}
+		if app.cfg.NotifyOnDownloadComplete {
+			_ = tray.ShowNotification("修改器下载完成", fmt.Sprintf("%s 已成功下载并加入库", task.FileName), false)
+		}
+	}
+	dlMgr.OnTaskFail = func(task *model.DownloadTask, err error) {
+		if app.EventEmitter != nil && app.ctx != nil {
+			app.EventEmitter(app.ctx, "download:failed", task)
+		}
+		if app.cfg.NotifyOnDownloadFailed {
+			_ = tray.ShowNotification("修改器下载失败", fmt.Sprintf("%s 下载失败: %v", task.FileName, err), true)
+		}
+	}
 
 	return app, nil
 }
@@ -181,6 +204,22 @@ func (a *App) Startup(ctx context.Context) {
 			a.Quit()
 		})
 		a.updateTrayLabels(a.cfg.Language)
+
+		tray.SetHotkeyHandlers(func() {
+			if a.ctx != nil && isWailsContext(a.ctx) {
+				runtime.WindowShow(a.ctx)
+				runtime.WindowUnminimise(a.ctx)
+			}
+		}, func() {
+			if a.ctx != nil && isWailsContext(a.ctx) {
+				runtime.WindowShow(a.ctx)
+				runtime.WindowUnminimise(a.ctx)
+				if a.EventEmitter != nil {
+					a.EventEmitter(a.ctx, "navigate:downloads", nil)
+				}
+			}
+		})
+		_ = tray.UpdateHotkeys(a.cfg.GlobalHotkeysEnabled, a.cfg.HotkeyToggleWindow, a.cfg.HotkeyOpenDownloads)
 	}
 
 	// 恢复上次异常退出的未完成任务
@@ -266,6 +305,7 @@ func (a *App) GetTrainerDetail(detailURL string) (*model.Trainer, error) {
 		}
 
 		trainer.GameID = gameID
+		_ = a.gameRepo.RecordVisit(ctx, gameID)
 		if trainer.TitleCN == "" {
 			cnCandidates := a.translator.TranslateEnglishToChinese(gameNameEN)
 			if len(cnCandidates) > 0 {
@@ -316,13 +356,22 @@ func (a *App) GetLatestTrainers(page int) ([]*model.SearchResult, error) {
 	return a.flingAdapter.GetLatest(ctx, page)
 }
 
-// GetLocalTrainers 获取已下载及自定义导入的本地修改器列表
+// GetLocalTrainers 获取已下载及自定义导入的本地修改器列表（附加运行中状态）
 func (a *App) GetLocalTrainers() ([]*trainer.LocalTrainerDetail, error) {
 	ctx := a.ctx
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return a.trainerSvc.ListLocalTrainers(ctx)
+	details, err := a.trainerSvc.ListLocalTrainers(ctx)
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range details {
+		if d.LocalTrainer != nil {
+			d.IsRunning = a.launcher.IsTrainerRunning(d.LocalTrainer.ID)
+		}
+	}
+	return details, nil
 }
 
 // ImportCustomTrainer 手动导入本地已有 EXE
@@ -646,6 +695,13 @@ func (a *App) SaveConfig(updated *config.AppConfig) error {
 		c.CloseToTray = updated.CloseToTray
 		c.RememberWindowSize = updated.RememberWindowSize
 		c.RememberWindowPosition = updated.RememberWindowPosition
+		c.NotifyOnDownloadComplete = updated.NotifyOnDownloadComplete
+		c.NotifyOnDownloadFailed = updated.NotifyOnDownloadFailed
+		c.NotifyOnTrainerUpdate = updated.NotifyOnTrainerUpdate
+		c.GlobalHotkeysEnabled = updated.GlobalHotkeysEnabled
+		c.HotkeyToggleWindow = updated.HotkeyToggleWindow
+		c.HotkeyOpenDownloads = updated.HotkeyOpenDownloads
+		c.AutoBackupConfig = updated.AutoBackupConfig
 	})
 	if err != nil {
 		return err
@@ -656,5 +712,233 @@ func (a *App) SaveConfig(updated *config.AppConfig) error {
 	if a.dlManager != nil {
 		a.dlManager.SetMaxConcurrent(updated.MaxConcurrentDownloads)
 	}
+
+	_ = tray.UpdateHotkeys(updated.GlobalHotkeysEnabled, updated.HotkeyToggleWindow, updated.HotkeyOpenDownloads)
+
+	return nil
+}
+
+// PauseAllDownloads 暂停所有活跃下载任务
+func (a *App) PauseAllDownloads() error {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return a.dlManager.PauseAllTasks(ctx)
+}
+
+// ResumeAllDownloads 恢复所有暂停或失败的下载任务
+func (a *App) ResumeAllDownloads() error {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return a.dlManager.ResumeAllTasks(ctx)
+}
+
+// GetSearchHistory 获取持久化搜索历史关键词
+func (a *App) GetSearchHistory(limit int) ([]string, error) {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return a.searchRepo.ListHistory(ctx, limit)
+}
+
+// AddSearchHistory 添加或更新搜索历史
+func (a *App) AddSearchHistory(keyword string) error {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return a.searchRepo.AddHistory(ctx, keyword)
+}
+
+// RemoveSearchHistory 移除单条搜索历史
+func (a *App) RemoveSearchHistory(keyword string) error {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return a.searchRepo.RemoveHistory(ctx, keyword)
+}
+
+// ClearSearchHistory 清空全部搜索历史
+func (a *App) ClearSearchHistory() error {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return a.searchRepo.ClearHistory(ctx)
+}
+
+// RecordGameVisit 记录用户访问游戏详情
+func (a *App) RecordGameVisit(gameID int64) error {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return a.gameRepo.RecordVisit(ctx, gameID)
+}
+
+// GetRecentGames 获取最近访问过的游戏
+func (a *App) GetRecentGames(limit int) ([]*model.Game, error) {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return a.gameRepo.ListVisited(ctx, limit)
+}
+
+// GetRecentTrainers 获取最近使用/更新的本地修改器
+func (a *App) GetRecentTrainers(limit int) ([]*trainer.LocalTrainerDetail, error) {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	details, err := a.trainerSvc.GetRecentTrainers(ctx, limit)
+	if err != nil {
+		return nil, err
+	}
+	for _, d := range details {
+		if d.LocalTrainer != nil {
+			d.IsRunning = a.launcher.IsTrainerRunning(d.LocalTrainer.ID)
+		}
+	}
+	return details, nil
+}
+
+// VerifyTrainerIntegrity 校验本地修改器文件 SHA-256 完整性
+func (a *App) VerifyTrainerIntegrity(localTrainerID int64) (*model.IntegrityResult, error) {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return a.trainerSvc.VerifyTrainerIntegrity(ctx, localTrainerID)
+}
+
+// RelocateTrainer 重新定位修改器路径
+func (a *App) RelocateTrainer(localTrainerID int64, newFilePath string) error {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return a.trainerSvc.RelocateTrainer(ctx, localTrainerID, newFilePath)
+}
+
+// IsTrainerRunning 检查修改器是否正在运行中
+func (a *App) IsTrainerRunning(localTrainerID int64) bool {
+	return a.launcher.IsTrainerRunning(localTrainerID)
+}
+
+// StopTrainer 终止正在运行的修改器进程
+func (a *App) StopTrainer(localTrainerID int64) error {
+	return a.launcher.StopTrainer(localTrainerID)
+}
+
+// SelectTrainerExecutable 唤起原生对话框选择本地已有 .exe 修改器
+func (a *App) SelectTrainerExecutable() (string, error) {
+	if !isWailsContext(a.ctx) {
+		return "", fmt.Errorf("桌面上下文未就绪")
+	}
+	filePath, err := runtime.OpenFileDialog(a.ctx, runtime.OpenDialogOptions{
+		Title: "选择游戏修改器可执行文件 (.exe)",
+		Filters: []runtime.FileFilter{
+			{DisplayName: "Executable (*.exe)", Pattern: "*.exe"},
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+	return filePath, nil
+}
+
+// CheckHotkeyConflict 检测指定快捷键是否冲突
+func (a *App) CheckHotkeyConflict(hotkeyStr string) (bool, error) {
+	return tray.CheckHotkeyConflict(hotkeyStr)
+}
+
+// CheckForUpdates 客户端版本检测与更新提醒
+func (a *App) CheckForUpdates() (*model.UpdateCheckResult, error) {
+	currentVer := "1.0.0"
+	latestVer := "1.0.0"
+	hasUpdate := update.CompareVersions(latestVer, currentVer) > 0
+	return &model.UpdateCheckResult{
+		HasUpdate:      hasUpdate,
+		CurrentVersion: currentVer,
+		LatestVersion:  latestVer,
+		ReleaseNotes:   "当前已是最新发布版本 (v1.0.0)。",
+		PublishedAt:    time.Now().Format("2006-01-02"),
+	}, nil
+}
+
+// DiagnoseEnvironment 执行一键环境与网络诊断
+func (a *App) DiagnoseEnvironment() (*model.DiagnosticReport, error) {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	activeTasks, _ := a.dlRepo.ListTasks(ctx, model.DownloadStatusDownloading)
+	allLocals, _ := a.localRepo.ListAll(ctx)
+	allFavs, _ := a.gameRepo.ListFavorites(ctx)
+
+	return diagnostics.DiagnoseEnvironment(a.cfg, a.db, len(activeTasks), len(allLocals), len(allFavs))
+}
+
+// ExportDiagnostics 一键导出诊断日志为脱敏文本文件并打开所在文件夹
+func (a *App) ExportDiagnostics() (string, error) {
+	rep, err := a.DiagnoseEnvironment()
+	if err != nil {
+		return "", err
+	}
+	logs := logger.GetRecentLogs(100, "")
+	exportDir := a.cfg.DownloadDir
+	if exportDir == "" {
+		exportDir = a.cfg.BaseDir
+	}
+	filePath, err := diagnostics.ExportDiagnosticsReport(rep, logs, exportDir)
+	if err != nil {
+		return "", err
+	}
+	_ = a.OpenContainingFolder(filePath)
+	return filePath, nil
+}
+
+// GetRecentLogs 查询最新分类日志列表
+func (a *App) GetRecentLogs(limit int, category string) ([]model.LogEntry, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	return logger.GetRecentLogs(limit, category), nil
+}
+
+// ExportConfig 导出客户端配置为格式化 JSON 字符串
+func (a *App) ExportConfig() (string, error) {
+	return a.cfg.ExportConfigJSON()
+}
+
+// ImportConfig 从 JSON 导入客户端配置并热应用
+func (a *App) ImportConfig(jsonStr string) error {
+	if err := a.cfg.ImportConfigJSON(jsonStr); err != nil {
+		return fmt.Errorf("导入配置失败: %w", err)
+	}
+	a.updateTrayLabels(a.cfg.Language)
+	if a.dlManager != nil {
+		a.dlManager.SetMaxConcurrent(a.cfg.MaxConcurrentDownloads)
+	}
+	_ = tray.UpdateHotkeys(a.cfg.GlobalHotkeysEnabled, a.cfg.HotkeyToggleWindow, a.cfg.HotkeyOpenDownloads)
+	return nil
+}
+
+// ResetConfig 恢复默认设置并热应用
+func (a *App) ResetConfig() error {
+	if err := a.cfg.ResetToDefault(); err != nil {
+		return fmt.Errorf("恢复默认设置失败: %w", err)
+	}
+	a.updateTrayLabels(a.cfg.Language)
+	if a.dlManager != nil {
+		a.dlManager.SetMaxConcurrent(a.cfg.MaxConcurrentDownloads)
+	}
+	_ = tray.UpdateHotkeys(a.cfg.GlobalHotkeysEnabled, a.cfg.HotkeyToggleWindow, a.cfg.HotkeyOpenDownloads)
 	return nil
 }

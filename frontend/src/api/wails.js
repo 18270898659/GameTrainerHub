@@ -189,9 +189,164 @@ export const api = {
         }
         return '';
     },
+    async pauseAllDownloads() {
+        if (isWails()) {
+            return window.go.app.App.PauseAllDownloads();
+        }
+    },
+    async resumeAllDownloads() {
+        if (isWails()) {
+            return window.go.app.App.ResumeAllDownloads();
+        }
+    },
+    async getSearchHistory(limit = 20) {
+        if (isWails()) {
+            return window.go.app.App.GetSearchHistory(limit);
+        }
+        return [];
+    },
+    async addSearchHistory(keyword) {
+        if (isWails()) {
+            return window.go.app.App.AddSearchHistory(keyword);
+        }
+    },
+    async removeSearchHistory(keyword) {
+        if (isWails()) {
+            return window.go.app.App.RemoveSearchHistory(keyword);
+        }
+    },
+    async clearSearchHistory() {
+        if (isWails()) {
+            return window.go.app.App.ClearSearchHistory();
+        }
+    },
+    async recordGameVisit(gameID) {
+        if (isWails()) {
+            return window.go.app.App.RecordGameVisit(gameID);
+        }
+    },
+    async getRecentGames(limit = 10) {
+        if (isWails()) {
+            return window.go.app.App.GetRecentGames(limit);
+        }
+        return [];
+    },
+    async getRecentTrainers(limit = 10) {
+        if (isWails()) {
+            return window.go.app.App.GetRecentTrainers(limit);
+        }
+        return [];
+    },
+    async verifyTrainerIntegrity(localTrainerID) {
+        if (isWails()) {
+            return window.go.app.App.VerifyTrainerIntegrity(localTrainerID);
+        }
+        return {
+            trainer_id: localTrainerID,
+            file_path: '',
+            file_exists: false,
+            expected_sha256: '',
+            actual_sha256: '',
+            file_size: 0,
+            is_valid: false,
+            message: 'Not in desktop'
+        };
+    },
+    async relocateTrainer(localTrainerID, newFilePath) {
+        if (isWails()) {
+            return window.go.app.App.RelocateTrainer(localTrainerID, newFilePath);
+        }
+    },
+    async isTrainerRunning(localTrainerID) {
+        if (isWails()) {
+            return window.go.app.App.IsTrainerRunning(localTrainerID);
+        }
+        return false;
+    },
+    async stopTrainer(localTrainerID) {
+        if (isWails()) {
+            return window.go.app.App.StopTrainer(localTrainerID);
+        }
+    },
+    async selectTrainerExecutable() {
+        if (isWails()) {
+            return window.go.app.App.SelectTrainerExecutable();
+        }
+        return '';
+    },
+    async checkHotkeyConflict(hotkeyStr) {
+        if (isWails()) {
+            return window.go.app.App.CheckHotkeyConflict(hotkeyStr);
+        }
+        return false;
+    },
+    async checkForUpdates() {
+        if (isWails()) {
+            return window.go.app.App.CheckForUpdates();
+        }
+        return {
+            has_update: false,
+            current_version: '1.0.0',
+            latest_version: '1.0.0',
+            release_notes: '最新版本'
+        };
+    },
+    async diagnoseEnvironment() {
+        if (isWails()) {
+            return window.go.app.App.DiagnoseEnvironment();
+        }
+        return {
+            generated_at: new Date().toISOString(),
+            app_version: '1.0.0',
+            os: 'windows',
+            arch: 'amd64',
+            download_dir: '',
+            download_dir_writable: true,
+            available_disk_bytes: 1024 * 1024 * 1024,
+            db_path: '',
+            db_integrity_ok: true,
+            active_downloads: 0,
+            local_trainers_count: 0,
+            favorites_count: 0
+        };
+    },
+    async exportDiagnostics() {
+        if (isWails()) {
+            return window.go.app.App.ExportDiagnostics();
+        }
+        return '';
+    },
+    async getRecentLogs(limit = 100, category = '') {
+        if (isWails()) {
+            return window.go.app.App.GetRecentLogs(limit, category);
+        }
+        return [];
+    },
+    async exportConfig() {
+        if (isWails()) {
+            return window.go.app.App.ExportConfig();
+        }
+        return '';
+    },
+    async importConfig(jsonStr) {
+        if (isWails()) {
+            return window.go.app.App.ImportConfig(jsonStr);
+        }
+    },
+    async resetConfig() {
+        if (isWails()) {
+            return window.go.app.App.ResetConfig();
+        }
+    },
     onDownloadProgress(callback) {
         if (typeof window !== 'undefined' && window.runtime?.EventsOn) {
             return window.runtime.EventsOn('download:progress', callback);
+        }
+        return undefined;
+    },
+    onNavigate(callback) {
+        if (typeof window !== 'undefined' && window.runtime?.EventsOn) {
+            return window.runtime.EventsOn('navigate:downloads', () => callback('/downloads'));
         }
         return undefined;
     }

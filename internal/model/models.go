@@ -186,6 +186,82 @@ type SearchResult struct {
 	UpdatedAt    time.Time `json:"updated_at"`
 	IsDownloaded bool      `json:"is_downloaded"`
 	IsOnlineOnly bool      `json:"is_online_only"`
+	IsFavorite   bool      `json:"is_favorite"`
 	Score        float64   `json:"score"`
+}
+
+// SearchHistoryItem 搜索历史记录
+type SearchHistoryItem struct {
+	ID        int64     `json:"id"`
+	Keyword   string    `json:"keyword"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+// VisitedGame 最近访问游戏
+type VisitedGame struct {
+	ID        int64     `json:"id"`
+	GameID    int64     `json:"game_id"`
+	VisitedAt time.Time `json:"visited_at"`
+	Game      *Game     `json:"game,omitempty"`
+}
+
+// IntegrityResult 修改器文件完整性校验结果
+type IntegrityResult struct {
+	TrainerID      int64  `json:"trainer_id"`
+	FilePath       string `json:"file_path"`
+	FileExists     bool   `json:"file_exists"`
+	ExpectedSHA256 string `json:"expected_sha256"`
+	ActualSHA256   string `json:"actual_sha256"`
+	FileSize       int64  `json:"file_size"`
+	IsValid        bool   `json:"is_valid"`
+	Message        string `json:"message"`
+}
+
+// NetworkDiagnosis 网络连通性诊断结果
+type NetworkDiagnosis struct {
+	TargetHost      string `json:"target_host"`
+	DNSResolved     bool   `json:"dns_resolved"`
+	IPAddresses     string `json:"ip_addresses"`
+	HTTPStatus      int    `json:"http_status"`
+	LatencyMs       int64  `json:"latency_ms"`
+	IsReachable     bool   `json:"is_reachable"`
+	ErrorMessage    string `json:"error_message,omitempty"`
+}
+
+// DiagnosticReport 完整故障与环境诊断报告
+type DiagnosticReport struct {
+	GeneratedAt        time.Time         `json:"generated_at"`
+	AppVersion         string            `json:"app_version"`
+	OS                 string            `json:"os"`
+	Arch               string            `json:"arch"`
+	DownloadDir        string            `json:"download_dir"`
+	DownloadDirWritable bool             `json:"download_dir_writable"`
+	AvailableDiskBytes int64             `json:"available_disk_bytes"`
+	DBPath             string            `json:"db_path"`
+	DBIntegrityOK      bool              `json:"db_integrity_ok"`
+	Network            *NetworkDiagnosis `json:"network"`
+	ActiveDownloads    int               `json:"active_downloads"`
+	LocalTrainersCount int               `json:"local_trainers_count"`
+	FavoritesCount     int               `json:"favorites_count"`
+}
+
+// LogEntry 内存与导出的结构化日志条目
+type LogEntry struct {
+	Timestamp time.Time `json:"timestamp"`
+	Level     string    `json:"level"`
+	Category  string    `json:"category"` // 'download', 'launch', 'search', 'system'
+	Message   string    `json:"message"`
+	Details   string    `json:"details,omitempty"`
+}
+
+// UpdateCheckResult 检查更新响应结构
+type UpdateCheckResult struct {
+	HasUpdate       bool   `json:"has_update"`
+	CurrentVersion  string `json:"current_version"`
+	LatestVersion   string `json:"latest_version"`
+	ReleaseNotes    string `json:"release_notes"`
+	DownloadURL     string `json:"download_url"`
+	PackageSHA256   string `json:"package_sha256"`
+	PublishedAt     string `json:"published_at"`
 }
 

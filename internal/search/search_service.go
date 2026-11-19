@@ -149,9 +149,20 @@ func (s *SearchService) Search(ctx context.Context, filter *model.SearchFilter) 
 		wg.Wait()
 	}
 
-	// 4. 计算相关度打分与排序
+	// 4. 计算相关度打分与排序，并补充收藏状态
 	var finalResults []*model.SearchResult
 	for _, item := range resultMap {
+		if !item.IsFavorite {
+			if item.GameID > 0 {
+				isFav, _ := s.gameRepo.IsFavorite(ctx, item.GameID)
+				item.IsFavorite = isFav
+			} else if item.Slug != "" {
+				if g, _ := s.gameRepo.GetBySlug(ctx, item.Slug); g != nil {
+					item.IsFavorite = g.IsFavorite
+					item.GameID = g.ID
+				}
+			}
+		}
 		item.Score = s.calculateRelevance(item, cleanQuery, expandedTerms)
 		finalResults = append(finalResults, item)
 	}
@@ -217,6 +228,7 @@ func (s *SearchService) searchLocal(ctx context.Context, rawQuery string, expand
 				UpdatedAt:    game.UpdatedAt,
 				IsDownloaded: false,
 				IsOnlineOnly: false,
+				IsFavorite:   game.IsFavorite,
 			})
 		} else {
 			for _, tr := range trainers {
@@ -248,6 +260,7 @@ func (s *SearchService) searchLocal(ctx context.Context, rawQuery string, expand
 					UpdatedAt:    tr.UpdatedAt,
 					IsDownloaded: isDl,
 					IsOnlineOnly: false,
+					IsFavorite:   game.IsFavorite,
 				})
 			}
 		}

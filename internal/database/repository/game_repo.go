@@ -252,3 +252,45 @@ func (r *GameRepository) ListFavorites(ctx context.Context) ([]*model.Game, erro
 	}
 	return games, rows.Err()
 }
+
+// RecordVisit 记录或更新游戏最近访问时间
+func (r *GameRepository) RecordVisit(ctx context.Context, gameID int64) error {
+	_, err := r.db.ExecContext(ctx, `
+		INSERT INTO visited_games (game_id, visited_at)
+		VALUES (?, CURRENT_TIMESTAMP)
+		ON CONFLICT(game_id) DO UPDATE SET visited_at = CURRENT_TIMESTAMP
+	`, gameID)
+	return err
+}
+
+// ListVisited 获取最近访问的游戏列表
+func (r *GameRepository) ListVisited(ctx context.Context, limit int) ([]*model.Game, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT g.id, g.slug, g.name_en, g.name_cn, g.cover_url, g.steam_app_id, g.install_path, 
+		       g.created_at, g.updated_at,
+		       EXISTS(SELECT 1 FROM favorites WHERE game_id = g.id) AS is_fav
+		FROM games g
+		JOIN visited_games vg ON g.id = vg.game_id
+		ORDER BY vg.visited_at DESC
+		LIMIT ?
+	`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var games []*model.Game
+	for rows.Next() {
+		var g model.Game
+		var isFav int
+		if err := rows.Scan(&g.ID, &g.Slug, &g.NameEN, &g.NameCN, &g.CoverURL, &g.SteamAppID, &g.InstallPath, &g.CreatedAt, &g.UpdatedAt, &isFav); err != nil {
+			return nil, err
+		}
+		g.IsFavorite = (isFav == 1)
+		games = append(games, &g)
+	}
+	return games, rows.Err()
+}

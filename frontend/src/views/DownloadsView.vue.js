@@ -21,6 +21,26 @@ async function loadHistory() {
         console.error('Failed to load history', e);
     }
 }
+async function pauseAll() {
+    try {
+        await api.pauseAllDownloads();
+        await store.refreshDownloads();
+        ElMessage.success(t('downloads.pauseAllSuccess'));
+    }
+    catch (e) {
+        ElMessage.error(e?.message || String(e));
+    }
+}
+async function resumeAll() {
+    try {
+        await api.resumeAllDownloads();
+        await store.refreshDownloads();
+        ElMessage.success(t('downloads.resumeAllSuccess'));
+    }
+    catch (e) {
+        ElMessage.error(e?.message || String(e));
+    }
+}
 async function pauseTask(id) {
     try {
         await api.pauseDownload(id);
@@ -84,8 +104,8 @@ debugger; /* PartiallyEnd: #3632/scriptSetup.vue */
 const __VLS_ctx = {};
 let __VLS_components;
 let __VLS_directives;
-/** @type {__VLS_StyleScopedClasses['card-retrying']} */ ;
-/** @type {__VLS_StyleScopedClasses['task-error-alert']} */ ;
+/** @type {__VLS_StyleScopedClasses['task-card']} */ ;
+/** @type {__VLS_StyleScopedClasses['task-card']} */ ;
 // CSS variable injection 
 // CSS variable injection end 
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -116,6 +136,80 @@ const __VLS_6 = __VLS_5({
 }, ...__VLS_functionalComponentArgsRest(__VLS_5));
 __VLS_7.slots.default;
 if (__VLS_ctx.store.downloadTasks.length > 0) {
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({});
+    __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
+        ...{ class: "batch-bar" },
+    });
+    const __VLS_8 = {}.ElButton;
+    /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
+    // @ts-ignore
+    const __VLS_9 = __VLS_asFunctionalComponent(__VLS_8, new __VLS_8({
+        ...{ 'onClick': {} },
+        size: "small",
+        plain: true,
+    }));
+    const __VLS_10 = __VLS_9({
+        ...{ 'onClick': {} },
+        size: "small",
+        plain: true,
+    }, ...__VLS_functionalComponentArgsRest(__VLS_9));
+    let __VLS_12;
+    let __VLS_13;
+    let __VLS_14;
+    const __VLS_15 = {
+        onClick: (__VLS_ctx.pauseAll)
+    };
+    __VLS_11.slots.default;
+    const __VLS_16 = {}.ElIcon;
+    /** @type {[typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, ]} */ ;
+    // @ts-ignore
+    const __VLS_17 = __VLS_asFunctionalComponent(__VLS_16, new __VLS_16({}));
+    const __VLS_18 = __VLS_17({}, ...__VLS_functionalComponentArgsRest(__VLS_17));
+    __VLS_19.slots.default;
+    const __VLS_20 = {}.VideoPause;
+    /** @type {[typeof __VLS_components.VideoPause, ]} */ ;
+    // @ts-ignore
+    const __VLS_21 = __VLS_asFunctionalComponent(__VLS_20, new __VLS_20({}));
+    const __VLS_22 = __VLS_21({}, ...__VLS_functionalComponentArgsRest(__VLS_21));
+    var __VLS_19;
+    (__VLS_ctx.t('downloads.pauseAll'));
+    var __VLS_11;
+    const __VLS_24 = {}.ElButton;
+    /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
+    // @ts-ignore
+    const __VLS_25 = __VLS_asFunctionalComponent(__VLS_24, new __VLS_24({
+        ...{ 'onClick': {} },
+        size: "small",
+        type: "primary",
+        plain: true,
+    }));
+    const __VLS_26 = __VLS_25({
+        ...{ 'onClick': {} },
+        size: "small",
+        type: "primary",
+        plain: true,
+    }, ...__VLS_functionalComponentArgsRest(__VLS_25));
+    let __VLS_28;
+    let __VLS_29;
+    let __VLS_30;
+    const __VLS_31 = {
+        onClick: (__VLS_ctx.resumeAll)
+    };
+    __VLS_27.slots.default;
+    const __VLS_32 = {}.ElIcon;
+    /** @type {[typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, ]} */ ;
+    // @ts-ignore
+    const __VLS_33 = __VLS_asFunctionalComponent(__VLS_32, new __VLS_32({}));
+    const __VLS_34 = __VLS_33({}, ...__VLS_functionalComponentArgsRest(__VLS_33));
+    __VLS_35.slots.default;
+    const __VLS_36 = {}.VideoPlay;
+    /** @type {[typeof __VLS_components.VideoPlay, ]} */ ;
+    // @ts-ignore
+    const __VLS_37 = __VLS_asFunctionalComponent(__VLS_36, new __VLS_36({}));
+    const __VLS_38 = __VLS_37({}, ...__VLS_functionalComponentArgsRest(__VLS_37));
+    var __VLS_35;
+    (__VLS_ctx.t('downloads.resumeAll'));
+    var __VLS_27;
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "task-list" },
     });
@@ -143,23 +237,23 @@ if (__VLS_ctx.store.downloadTasks.length > 0) {
             ...{ class: "task-actions" },
         });
         if (task.status === 'downloading' || task.status === 'retrying') {
-            const __VLS_8 = {}.ElButton;
+            const __VLS_40 = {}.ElButton;
             /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
             // @ts-ignore
-            const __VLS_9 = __VLS_asFunctionalComponent(__VLS_8, new __VLS_8({
+            const __VLS_41 = __VLS_asFunctionalComponent(__VLS_40, new __VLS_40({
                 ...{ 'onClick': {} },
                 size: "small",
                 plain: true,
             }));
-            const __VLS_10 = __VLS_9({
+            const __VLS_42 = __VLS_41({
                 ...{ 'onClick': {} },
                 size: "small",
                 plain: true,
-            }, ...__VLS_functionalComponentArgsRest(__VLS_9));
-            let __VLS_12;
-            let __VLS_13;
-            let __VLS_14;
-            const __VLS_15 = {
+            }, ...__VLS_functionalComponentArgsRest(__VLS_41));
+            let __VLS_44;
+            let __VLS_45;
+            let __VLS_46;
+            const __VLS_47 = {
                 onClick: (...[$event]) => {
                     if (!(__VLS_ctx.store.downloadTasks.length > 0))
                         return;
@@ -168,42 +262,42 @@ if (__VLS_ctx.store.downloadTasks.length > 0) {
                     __VLS_ctx.pauseTask(task.id);
                 }
             };
-            __VLS_11.slots.default;
-            const __VLS_16 = {}.ElIcon;
+            __VLS_43.slots.default;
+            const __VLS_48 = {}.ElIcon;
             /** @type {[typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, ]} */ ;
             // @ts-ignore
-            const __VLS_17 = __VLS_asFunctionalComponent(__VLS_16, new __VLS_16({}));
-            const __VLS_18 = __VLS_17({}, ...__VLS_functionalComponentArgsRest(__VLS_17));
-            __VLS_19.slots.default;
-            const __VLS_20 = {}.VideoPause;
+            const __VLS_49 = __VLS_asFunctionalComponent(__VLS_48, new __VLS_48({}));
+            const __VLS_50 = __VLS_49({}, ...__VLS_functionalComponentArgsRest(__VLS_49));
+            __VLS_51.slots.default;
+            const __VLS_52 = {}.VideoPause;
             /** @type {[typeof __VLS_components.VideoPause, ]} */ ;
             // @ts-ignore
-            const __VLS_21 = __VLS_asFunctionalComponent(__VLS_20, new __VLS_20({}));
-            const __VLS_22 = __VLS_21({}, ...__VLS_functionalComponentArgsRest(__VLS_21));
-            var __VLS_19;
+            const __VLS_53 = __VLS_asFunctionalComponent(__VLS_52, new __VLS_52({}));
+            const __VLS_54 = __VLS_53({}, ...__VLS_functionalComponentArgsRest(__VLS_53));
+            var __VLS_51;
             (__VLS_ctx.t('downloads.pause'));
-            var __VLS_11;
+            var __VLS_43;
         }
         else if (task.status === 'paused') {
-            const __VLS_24 = {}.ElButton;
+            const __VLS_56 = {}.ElButton;
             /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
             // @ts-ignore
-            const __VLS_25 = __VLS_asFunctionalComponent(__VLS_24, new __VLS_24({
+            const __VLS_57 = __VLS_asFunctionalComponent(__VLS_56, new __VLS_56({
                 ...{ 'onClick': {} },
                 size: "small",
                 type: "primary",
                 plain: true,
             }));
-            const __VLS_26 = __VLS_25({
+            const __VLS_58 = __VLS_57({
                 ...{ 'onClick': {} },
                 size: "small",
                 type: "primary",
                 plain: true,
-            }, ...__VLS_functionalComponentArgsRest(__VLS_25));
-            let __VLS_28;
-            let __VLS_29;
-            let __VLS_30;
-            const __VLS_31 = {
+            }, ...__VLS_functionalComponentArgsRest(__VLS_57));
+            let __VLS_60;
+            let __VLS_61;
+            let __VLS_62;
+            const __VLS_63 = {
                 onClick: (...[$event]) => {
                     if (!(__VLS_ctx.store.downloadTasks.length > 0))
                         return;
@@ -214,42 +308,42 @@ if (__VLS_ctx.store.downloadTasks.length > 0) {
                     __VLS_ctx.resumeTask(task.id);
                 }
             };
-            __VLS_27.slots.default;
-            const __VLS_32 = {}.ElIcon;
+            __VLS_59.slots.default;
+            const __VLS_64 = {}.ElIcon;
             /** @type {[typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, ]} */ ;
             // @ts-ignore
-            const __VLS_33 = __VLS_asFunctionalComponent(__VLS_32, new __VLS_32({}));
-            const __VLS_34 = __VLS_33({}, ...__VLS_functionalComponentArgsRest(__VLS_33));
-            __VLS_35.slots.default;
-            const __VLS_36 = {}.VideoPlay;
+            const __VLS_65 = __VLS_asFunctionalComponent(__VLS_64, new __VLS_64({}));
+            const __VLS_66 = __VLS_65({}, ...__VLS_functionalComponentArgsRest(__VLS_65));
+            __VLS_67.slots.default;
+            const __VLS_68 = {}.VideoPlay;
             /** @type {[typeof __VLS_components.VideoPlay, ]} */ ;
             // @ts-ignore
-            const __VLS_37 = __VLS_asFunctionalComponent(__VLS_36, new __VLS_36({}));
-            const __VLS_38 = __VLS_37({}, ...__VLS_functionalComponentArgsRest(__VLS_37));
-            var __VLS_35;
+            const __VLS_69 = __VLS_asFunctionalComponent(__VLS_68, new __VLS_68({}));
+            const __VLS_70 = __VLS_69({}, ...__VLS_functionalComponentArgsRest(__VLS_69));
+            var __VLS_67;
             (__VLS_ctx.t('downloads.resume'));
-            var __VLS_27;
+            var __VLS_59;
         }
         else if (task.status === 'failed') {
-            const __VLS_40 = {}.ElButton;
+            const __VLS_72 = {}.ElButton;
             /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
             // @ts-ignore
-            const __VLS_41 = __VLS_asFunctionalComponent(__VLS_40, new __VLS_40({
+            const __VLS_73 = __VLS_asFunctionalComponent(__VLS_72, new __VLS_72({
                 ...{ 'onClick': {} },
                 size: "small",
                 type: "warning",
                 plain: true,
             }));
-            const __VLS_42 = __VLS_41({
+            const __VLS_74 = __VLS_73({
                 ...{ 'onClick': {} },
                 size: "small",
                 type: "warning",
                 plain: true,
-            }, ...__VLS_functionalComponentArgsRest(__VLS_41));
-            let __VLS_44;
-            let __VLS_45;
-            let __VLS_46;
-            const __VLS_47 = {
+            }, ...__VLS_functionalComponentArgsRest(__VLS_73));
+            let __VLS_76;
+            let __VLS_77;
+            let __VLS_78;
+            const __VLS_79 = {
                 onClick: (...[$event]) => {
                     if (!(__VLS_ctx.store.downloadTasks.length > 0))
                         return;
@@ -262,42 +356,42 @@ if (__VLS_ctx.store.downloadTasks.length > 0) {
                     __VLS_ctx.resumeTask(task.id);
                 }
             };
-            __VLS_43.slots.default;
-            const __VLS_48 = {}.ElIcon;
+            __VLS_75.slots.default;
+            const __VLS_80 = {}.ElIcon;
             /** @type {[typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, ]} */ ;
             // @ts-ignore
-            const __VLS_49 = __VLS_asFunctionalComponent(__VLS_48, new __VLS_48({}));
-            const __VLS_50 = __VLS_49({}, ...__VLS_functionalComponentArgsRest(__VLS_49));
-            __VLS_51.slots.default;
-            const __VLS_52 = {}.RefreshRight;
+            const __VLS_81 = __VLS_asFunctionalComponent(__VLS_80, new __VLS_80({}));
+            const __VLS_82 = __VLS_81({}, ...__VLS_functionalComponentArgsRest(__VLS_81));
+            __VLS_83.slots.default;
+            const __VLS_84 = {}.RefreshRight;
             /** @type {[typeof __VLS_components.RefreshRight, ]} */ ;
             // @ts-ignore
-            const __VLS_53 = __VLS_asFunctionalComponent(__VLS_52, new __VLS_52({}));
-            const __VLS_54 = __VLS_53({}, ...__VLS_functionalComponentArgsRest(__VLS_53));
-            var __VLS_51;
+            const __VLS_85 = __VLS_asFunctionalComponent(__VLS_84, new __VLS_84({}));
+            const __VLS_86 = __VLS_85({}, ...__VLS_functionalComponentArgsRest(__VLS_85));
+            var __VLS_83;
             (__VLS_ctx.t('downloads.retry'));
-            var __VLS_43;
+            var __VLS_75;
         }
         if (task.status === 'completed') {
-            const __VLS_56 = {}.ElButton;
+            const __VLS_88 = {}.ElButton;
             /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
             // @ts-ignore
-            const __VLS_57 = __VLS_asFunctionalComponent(__VLS_56, new __VLS_56({
+            const __VLS_89 = __VLS_asFunctionalComponent(__VLS_88, new __VLS_88({
                 ...{ 'onClick': {} },
                 size: "small",
                 type: "success",
                 plain: true,
             }));
-            const __VLS_58 = __VLS_57({
+            const __VLS_90 = __VLS_89({
                 ...{ 'onClick': {} },
                 size: "small",
                 type: "success",
                 plain: true,
-            }, ...__VLS_functionalComponentArgsRest(__VLS_57));
-            let __VLS_60;
-            let __VLS_61;
-            let __VLS_62;
-            const __VLS_63 = {
+            }, ...__VLS_functionalComponentArgsRest(__VLS_89));
+            let __VLS_92;
+            let __VLS_93;
+            let __VLS_94;
+            const __VLS_95 = {
                 onClick: (...[$event]) => {
                     if (!(__VLS_ctx.store.downloadTasks.length > 0))
                         return;
@@ -306,96 +400,96 @@ if (__VLS_ctx.store.downloadTasks.length > 0) {
                     __VLS_ctx.openFolder(task.save_path);
                 }
             };
-            __VLS_59.slots.default;
-            const __VLS_64 = {}.ElIcon;
+            __VLS_91.slots.default;
+            const __VLS_96 = {}.ElIcon;
             /** @type {[typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, ]} */ ;
             // @ts-ignore
-            const __VLS_65 = __VLS_asFunctionalComponent(__VLS_64, new __VLS_64({}));
-            const __VLS_66 = __VLS_65({}, ...__VLS_functionalComponentArgsRest(__VLS_65));
-            __VLS_67.slots.default;
-            const __VLS_68 = {}.FolderOpened;
+            const __VLS_97 = __VLS_asFunctionalComponent(__VLS_96, new __VLS_96({}));
+            const __VLS_98 = __VLS_97({}, ...__VLS_functionalComponentArgsRest(__VLS_97));
+            __VLS_99.slots.default;
+            const __VLS_100 = {}.FolderOpened;
             /** @type {[typeof __VLS_components.FolderOpened, ]} */ ;
             // @ts-ignore
-            const __VLS_69 = __VLS_asFunctionalComponent(__VLS_68, new __VLS_68({}));
-            const __VLS_70 = __VLS_69({}, ...__VLS_functionalComponentArgsRest(__VLS_69));
-            var __VLS_67;
+            const __VLS_101 = __VLS_asFunctionalComponent(__VLS_100, new __VLS_100({}));
+            const __VLS_102 = __VLS_101({}, ...__VLS_functionalComponentArgsRest(__VLS_101));
+            var __VLS_99;
             (__VLS_ctx.t('downloads.locateFile'));
-            var __VLS_59;
+            var __VLS_91;
         }
-        const __VLS_72 = {}.ElButton;
+        const __VLS_104 = {}.ElButton;
         /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
         // @ts-ignore
-        const __VLS_73 = __VLS_asFunctionalComponent(__VLS_72, new __VLS_72({
+        const __VLS_105 = __VLS_asFunctionalComponent(__VLS_104, new __VLS_104({
             ...{ 'onClick': {} },
             size: "small",
             type: "danger",
             plain: true,
         }));
-        const __VLS_74 = __VLS_73({
+        const __VLS_106 = __VLS_105({
             ...{ 'onClick': {} },
             size: "small",
             type: "danger",
             plain: true,
-        }, ...__VLS_functionalComponentArgsRest(__VLS_73));
-        let __VLS_76;
-        let __VLS_77;
-        let __VLS_78;
-        const __VLS_79 = {
+        }, ...__VLS_functionalComponentArgsRest(__VLS_105));
+        let __VLS_108;
+        let __VLS_109;
+        let __VLS_110;
+        const __VLS_111 = {
             onClick: (...[$event]) => {
                 if (!(__VLS_ctx.store.downloadTasks.length > 0))
                     return;
                 __VLS_ctx.cancelTask(task.id);
             }
         };
-        __VLS_75.slots.default;
-        const __VLS_80 = {}.ElIcon;
+        __VLS_107.slots.default;
+        const __VLS_112 = {}.ElIcon;
         /** @type {[typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, ]} */ ;
         // @ts-ignore
-        const __VLS_81 = __VLS_asFunctionalComponent(__VLS_80, new __VLS_80({}));
-        const __VLS_82 = __VLS_81({}, ...__VLS_functionalComponentArgsRest(__VLS_81));
-        __VLS_83.slots.default;
-        const __VLS_84 = {}.Delete;
+        const __VLS_113 = __VLS_asFunctionalComponent(__VLS_112, new __VLS_112({}));
+        const __VLS_114 = __VLS_113({}, ...__VLS_functionalComponentArgsRest(__VLS_113));
+        __VLS_115.slots.default;
+        const __VLS_116 = {}.Delete;
         /** @type {[typeof __VLS_components.Delete, ]} */ ;
         // @ts-ignore
-        const __VLS_85 = __VLS_asFunctionalComponent(__VLS_84, new __VLS_84({}));
-        const __VLS_86 = __VLS_85({}, ...__VLS_functionalComponentArgsRest(__VLS_85));
-        var __VLS_83;
+        const __VLS_117 = __VLS_asFunctionalComponent(__VLS_116, new __VLS_116({}));
+        const __VLS_118 = __VLS_117({}, ...__VLS_functionalComponentArgsRest(__VLS_117));
+        var __VLS_115;
         (task.status === 'completed' ? __VLS_ctx.t('downloads.clearRecord') : __VLS_ctx.t('downloads.cancel'));
-        var __VLS_75;
+        var __VLS_107;
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: "task-progress-wrap" },
         });
-        const __VLS_88 = {}.ElProgress;
+        const __VLS_120 = {}.ElProgress;
         /** @type {[typeof __VLS_components.ElProgress, typeof __VLS_components.elProgress, ]} */ ;
         // @ts-ignore
-        const __VLS_89 = __VLS_asFunctionalComponent(__VLS_88, new __VLS_88({
+        const __VLS_121 = __VLS_asFunctionalComponent(__VLS_120, new __VLS_120({
             percentage: (task.total_bytes > 0 ? Number(task.progress.toFixed(1)) : 0),
             indeterminate: (task.status === 'downloading' && task.total_bytes <= 0),
             status: (task.status === 'completed' ? 'success' : task.status === 'failed' ? 'exception' : task.status === 'retrying' ? 'warning' : ''),
             strokeWidth: (8),
         }));
-        const __VLS_90 = __VLS_89({
+        const __VLS_122 = __VLS_121({
             percentage: (task.total_bytes > 0 ? Number(task.progress.toFixed(1)) : 0),
             indeterminate: (task.status === 'downloading' && task.total_bytes <= 0),
             status: (task.status === 'completed' ? 'success' : task.status === 'failed' ? 'exception' : task.status === 'retrying' ? 'warning' : ''),
             strokeWidth: (8),
-        }, ...__VLS_functionalComponentArgsRest(__VLS_89));
+        }, ...__VLS_functionalComponentArgsRest(__VLS_121));
         if (task.error_msg && (task.status === 'failed' || task.status === 'retrying')) {
             __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
                 ...{ class: "task-error-alert" },
             });
-            const __VLS_92 = {}.ElIcon;
+            const __VLS_124 = {}.ElIcon;
             /** @type {[typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, ]} */ ;
             // @ts-ignore
-            const __VLS_93 = __VLS_asFunctionalComponent(__VLS_92, new __VLS_92({}));
-            const __VLS_94 = __VLS_93({}, ...__VLS_functionalComponentArgsRest(__VLS_93));
-            __VLS_95.slots.default;
-            const __VLS_96 = {}.WarningFilled;
+            const __VLS_125 = __VLS_asFunctionalComponent(__VLS_124, new __VLS_124({}));
+            const __VLS_126 = __VLS_125({}, ...__VLS_functionalComponentArgsRest(__VLS_125));
+            __VLS_127.slots.default;
+            const __VLS_128 = {}.WarningFilled;
             /** @type {[typeof __VLS_components.WarningFilled, ]} */ ;
             // @ts-ignore
-            const __VLS_97 = __VLS_asFunctionalComponent(__VLS_96, new __VLS_96({}));
-            const __VLS_98 = __VLS_97({}, ...__VLS_functionalComponentArgsRest(__VLS_97));
-            var __VLS_95;
+            const __VLS_129 = __VLS_asFunctionalComponent(__VLS_128, new __VLS_128({}));
+            const __VLS_130 = __VLS_129({}, ...__VLS_functionalComponentArgsRest(__VLS_129));
+            var __VLS_127;
             __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
             (task.error_msg);
         }
@@ -427,183 +521,184 @@ else {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "empty-wrap" },
     });
-    const __VLS_100 = {}.ElEmpty;
+    const __VLS_132 = {}.ElEmpty;
     /** @type {[typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, ]} */ ;
     // @ts-ignore
-    const __VLS_101 = __VLS_asFunctionalComponent(__VLS_100, new __VLS_100({
+    const __VLS_133 = __VLS_asFunctionalComponent(__VLS_132, new __VLS_132({
         description: (__VLS_ctx.t('downloads.emptyTasks')),
     }));
-    const __VLS_102 = __VLS_101({
+    const __VLS_134 = __VLS_133({
         description: (__VLS_ctx.t('downloads.emptyTasks')),
-    }, ...__VLS_functionalComponentArgsRest(__VLS_101));
+    }, ...__VLS_functionalComponentArgsRest(__VLS_133));
 }
 var __VLS_7;
-const __VLS_104 = {}.ElTabPane;
+const __VLS_136 = {}.ElTabPane;
 /** @type {[typeof __VLS_components.ElTabPane, typeof __VLS_components.elTabPane, typeof __VLS_components.ElTabPane, typeof __VLS_components.elTabPane, ]} */ ;
 // @ts-ignore
-const __VLS_105 = __VLS_asFunctionalComponent(__VLS_104, new __VLS_104({
+const __VLS_137 = __VLS_asFunctionalComponent(__VLS_136, new __VLS_136({
     label: (__VLS_ctx.t('downloads.tabHistory')),
     name: "history",
 }));
-const __VLS_106 = __VLS_105({
+const __VLS_138 = __VLS_137({
     label: (__VLS_ctx.t('downloads.tabHistory')),
     name: "history",
-}, ...__VLS_functionalComponentArgsRest(__VLS_105));
-__VLS_107.slots.default;
-const __VLS_108 = {}.ElTable;
+}, ...__VLS_functionalComponentArgsRest(__VLS_137));
+__VLS_139.slots.default;
+const __VLS_140 = {}.ElTable;
 /** @type {[typeof __VLS_components.ElTable, typeof __VLS_components.elTable, typeof __VLS_components.ElTable, typeof __VLS_components.elTable, ]} */ ;
 // @ts-ignore
-const __VLS_109 = __VLS_asFunctionalComponent(__VLS_108, new __VLS_108({
+const __VLS_141 = __VLS_asFunctionalComponent(__VLS_140, new __VLS_140({
     data: (__VLS_ctx.historyList),
     stripe: true,
     ...{ style: {} },
     ...{ class: "custom-table" },
 }));
-const __VLS_110 = __VLS_109({
+const __VLS_142 = __VLS_141({
     data: (__VLS_ctx.historyList),
     stripe: true,
     ...{ style: {} },
     ...{ class: "custom-table" },
-}, ...__VLS_functionalComponentArgsRest(__VLS_109));
-__VLS_111.slots.default;
-const __VLS_112 = {}.ElTableColumn;
+}, ...__VLS_functionalComponentArgsRest(__VLS_141));
+__VLS_143.slots.default;
+const __VLS_144 = {}.ElTableColumn;
 /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
 // @ts-ignore
-const __VLS_113 = __VLS_asFunctionalComponent(__VLS_112, new __VLS_112({
+const __VLS_145 = __VLS_asFunctionalComponent(__VLS_144, new __VLS_144({
     prop: "game_name",
     label: (__VLS_ctx.t('downloads.historyGame')),
     width: "220",
 }));
-const __VLS_114 = __VLS_113({
+const __VLS_146 = __VLS_145({
     prop: "game_name",
     label: (__VLS_ctx.t('downloads.historyGame')),
     width: "220",
-}, ...__VLS_functionalComponentArgsRest(__VLS_113));
-const __VLS_116 = {}.ElTableColumn;
+}, ...__VLS_functionalComponentArgsRest(__VLS_145));
+const __VLS_148 = {}.ElTableColumn;
 /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
 // @ts-ignore
-const __VLS_117 = __VLS_asFunctionalComponent(__VLS_116, new __VLS_116({
+const __VLS_149 = __VLS_asFunctionalComponent(__VLS_148, new __VLS_148({
     prop: "file_name",
     label: (__VLS_ctx.t('downloads.historyFile')),
 }));
-const __VLS_118 = __VLS_117({
+const __VLS_150 = __VLS_149({
     prop: "file_name",
     label: (__VLS_ctx.t('downloads.historyFile')),
-}, ...__VLS_functionalComponentArgsRest(__VLS_117));
-const __VLS_120 = {}.ElTableColumn;
+}, ...__VLS_functionalComponentArgsRest(__VLS_149));
+const __VLS_152 = {}.ElTableColumn;
 /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
 // @ts-ignore
-const __VLS_121 = __VLS_asFunctionalComponent(__VLS_120, new __VLS_120({
+const __VLS_153 = __VLS_asFunctionalComponent(__VLS_152, new __VLS_152({
     label: (__VLS_ctx.t('downloads.historySize')),
     width: "110",
 }));
-const __VLS_122 = __VLS_121({
+const __VLS_154 = __VLS_153({
     label: (__VLS_ctx.t('downloads.historySize')),
     width: "110",
-}, ...__VLS_functionalComponentArgsRest(__VLS_121));
-__VLS_123.slots.default;
+}, ...__VLS_functionalComponentArgsRest(__VLS_153));
+__VLS_155.slots.default;
 {
-    const { default: __VLS_thisSlot } = __VLS_123.slots;
+    const { default: __VLS_thisSlot } = __VLS_155.slots;
     const [{ row }] = __VLS_getSlotParams(__VLS_thisSlot);
     (__VLS_ctx.formatBytes(row.file_size));
 }
-var __VLS_123;
-const __VLS_124 = {}.ElTableColumn;
+var __VLS_155;
+const __VLS_156 = {}.ElTableColumn;
 /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
 // @ts-ignore
-const __VLS_125 = __VLS_asFunctionalComponent(__VLS_124, new __VLS_124({
+const __VLS_157 = __VLS_asFunctionalComponent(__VLS_156, new __VLS_156({
     label: "SHA-256",
     width: "220",
 }));
-const __VLS_126 = __VLS_125({
+const __VLS_158 = __VLS_157({
     label: "SHA-256",
     width: "220",
-}, ...__VLS_functionalComponentArgsRest(__VLS_125));
-__VLS_127.slots.default;
+}, ...__VLS_functionalComponentArgsRest(__VLS_157));
+__VLS_159.slots.default;
 {
-    const { default: __VLS_thisSlot } = __VLS_127.slots;
+    const { default: __VLS_thisSlot } = __VLS_159.slots;
     const [{ row }] = __VLS_getSlotParams(__VLS_thisSlot);
     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
         ...{ class: "hash-short" },
         title: (row.sha256),
     });
     ((row.sha256 || '').substring(0, 16));
-    const __VLS_128 = {}.ElButton;
+    const __VLS_160 = {}.ElButton;
     /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
     // @ts-ignore
-    const __VLS_129 = __VLS_asFunctionalComponent(__VLS_128, new __VLS_128({
+    const __VLS_161 = __VLS_asFunctionalComponent(__VLS_160, new __VLS_160({
         ...{ 'onClick': {} },
         link: true,
         type: "primary",
         size: "small",
     }));
-    const __VLS_130 = __VLS_129({
+    const __VLS_162 = __VLS_161({
         ...{ 'onClick': {} },
         link: true,
         type: "primary",
         size: "small",
-    }, ...__VLS_functionalComponentArgsRest(__VLS_129));
-    let __VLS_132;
-    let __VLS_133;
-    let __VLS_134;
-    const __VLS_135 = {
+    }, ...__VLS_functionalComponentArgsRest(__VLS_161));
+    let __VLS_164;
+    let __VLS_165;
+    let __VLS_166;
+    const __VLS_167 = {
         onClick: (...[$event]) => {
             __VLS_ctx.copy(row.sha256);
         }
     };
-    __VLS_131.slots.default;
+    __VLS_163.slots.default;
     (__VLS_ctx.t('security.copy'));
-    var __VLS_131;
+    var __VLS_163;
 }
-var __VLS_127;
-const __VLS_136 = {}.ElTableColumn;
+var __VLS_159;
+const __VLS_168 = {}.ElTableColumn;
 /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
 // @ts-ignore
-const __VLS_137 = __VLS_asFunctionalComponent(__VLS_136, new __VLS_136({
+const __VLS_169 = __VLS_asFunctionalComponent(__VLS_168, new __VLS_168({
     label: (__VLS_ctx.t('downloads.historyAction')),
     width: "140",
 }));
-const __VLS_138 = __VLS_137({
+const __VLS_170 = __VLS_169({
     label: (__VLS_ctx.t('downloads.historyAction')),
     width: "140",
-}, ...__VLS_functionalComponentArgsRest(__VLS_137));
-__VLS_139.slots.default;
+}, ...__VLS_functionalComponentArgsRest(__VLS_169));
+__VLS_171.slots.default;
 {
-    const { default: __VLS_thisSlot } = __VLS_139.slots;
+    const { default: __VLS_thisSlot } = __VLS_171.slots;
     const [{ row }] = __VLS_getSlotParams(__VLS_thisSlot);
-    const __VLS_140 = {}.ElButton;
+    const __VLS_172 = {}.ElButton;
     /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
     // @ts-ignore
-    const __VLS_141 = __VLS_asFunctionalComponent(__VLS_140, new __VLS_140({
+    const __VLS_173 = __VLS_asFunctionalComponent(__VLS_172, new __VLS_172({
         ...{ 'onClick': {} },
         size: "small",
         link: true,
         type: "primary",
     }));
-    const __VLS_142 = __VLS_141({
+    const __VLS_174 = __VLS_173({
         ...{ 'onClick': {} },
         size: "small",
         link: true,
         type: "primary",
-    }, ...__VLS_functionalComponentArgsRest(__VLS_141));
-    let __VLS_144;
-    let __VLS_145;
-    let __VLS_146;
-    const __VLS_147 = {
+    }, ...__VLS_functionalComponentArgsRest(__VLS_173));
+    let __VLS_176;
+    let __VLS_177;
+    let __VLS_178;
+    const __VLS_179 = {
         onClick: (...[$event]) => {
             __VLS_ctx.openFolder(row.save_path);
         }
     };
-    __VLS_143.slots.default;
+    __VLS_175.slots.default;
     (__VLS_ctx.t('downloads.locateFile'));
-    var __VLS_143;
+    var __VLS_175;
 }
+var __VLS_171;
+var __VLS_143;
 var __VLS_139;
-var __VLS_111;
-var __VLS_107;
 var __VLS_3;
 /** @type {__VLS_StyleScopedClasses['downloads-view']} */ ;
 /** @type {__VLS_StyleScopedClasses['custom-tabs']} */ ;
+/** @type {__VLS_StyleScopedClasses['batch-bar']} */ ;
 /** @type {__VLS_StyleScopedClasses['task-list']} */ ;
 /** @type {__VLS_StyleScopedClasses['task-card']} */ ;
 /** @type {__VLS_StyleScopedClasses['card-failed']} */ ;
@@ -636,6 +731,8 @@ const __VLS_self = (await import('vue')).defineComponent({
             store: store,
             activeTab: activeTab,
             historyList: historyList,
+            pauseAll: pauseAll,
+            resumeAll: resumeAll,
             pauseTask: pauseTask,
             resumeTask: resumeTask,
             cancelTask: cancelTask,

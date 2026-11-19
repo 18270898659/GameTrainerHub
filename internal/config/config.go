@@ -9,6 +9,7 @@ import (
 
 // AppConfig 客户端配置
 type AppConfig struct {
+	ConfigVersion          int    `json:"config_version"`          // 配置版本号
 	BaseDir                string `json:"base_dir"`
 	DataDir                string `json:"data_dir"`
 	DownloadDir            string `json:"download_dir"`
@@ -28,6 +29,15 @@ type AppConfig struct {
 	RememberWindowPosition bool   `json:"remember_window_position"`// 记住窗口位置
 	WindowX                int    `json:"window_x"`                // 记录的窗口X坐标
 	WindowY                int    `json:"window_y"`                // 记录的窗口Y坐标
+
+	// 第二阶段扩展：通知与快捷键
+	NotifyOnDownloadComplete bool   `json:"notify_on_download_complete"` // 下载完成系统通知
+	NotifyOnDownloadFailed   bool   `json:"notify_on_download_failed"`   // 下载失败系统通知
+	NotifyOnTrainerUpdate    bool   `json:"notify_on_trainer_update"`    // 修改器有新版时提醒
+	GlobalHotkeysEnabled     bool   `json:"global_hotkeys_enabled"`      // 是否开启全局快捷键
+	HotkeyToggleWindow       string `json:"hotkey_toggle_window"`        // 显示/隐藏客户端快捷键
+	HotkeyOpenDownloads      string `json:"hotkey_open_downloads"`       // 快速打开下载管理
+	AutoBackupConfig         bool   `json:"auto_backup_config"`          // 自动备份配置文件
 
 	configFilePath string       `json:"-"`
 	mu             sync.RWMutex `json:"-"`
@@ -50,6 +60,7 @@ func DefaultConfig() *AppConfig {
 	}
 
 	return &AppConfig{
+		ConfigVersion:          2,
 		BaseDir:                baseDir,
 		DataDir:                filepath.Join(baseDir, "data"),
 		DownloadDir:            filepath.Join(baseDir, "downloads"),
@@ -69,6 +80,13 @@ func DefaultConfig() *AppConfig {
 		RememberWindowPosition: false,
 		WindowX:                0,
 		WindowY:                0,
+		NotifyOnDownloadComplete: true,
+		NotifyOnDownloadFailed:   true,
+		NotifyOnTrainerUpdate:    true,
+		GlobalHotkeysEnabled:     true,
+		HotkeyToggleWindow:       "Alt+Q",
+		HotkeyOpenDownloads:      "Ctrl+J",
+		AutoBackupConfig:         true,
 		configFilePath:         filepath.Join(baseDir, "config.json"),
 	}
 }
@@ -93,6 +111,10 @@ func LoadConfig(customPath string) (*AppConfig, error) {
 	if customPath != "" {
 		targetPath = customPath
 		cfg.configFilePath = customPath
+		cfg.BaseDir = filepath.Dir(customPath)
+		cfg.DataDir = filepath.Join(cfg.BaseDir, "data")
+		cfg.DownloadDir = filepath.Join(cfg.BaseDir, "downloads")
+		cfg.LogDir = filepath.Join(cfg.BaseDir, "logs")
 	}
 
 	data, err := os.ReadFile(targetPath)
@@ -144,6 +166,15 @@ func LoadConfig(customPath string) (*AppConfig, error) {
 	if cfg.Language == "" {
 		cfg.Language = "zh-CN"
 	}
+	if cfg.HotkeyToggleWindow == "" {
+		cfg.HotkeyToggleWindow = "Alt+Q"
+	}
+	if cfg.HotkeyOpenDownloads == "" {
+		cfg.HotkeyOpenDownloads = "Ctrl+J"
+	}
+	if cfg.ConfigVersion <= 0 {
+		cfg.ConfigVersion = 2
+	}
 
 	return cfg, nil
 }
@@ -161,7 +192,7 @@ func (c *AppConfig) EnsureDirectories() error {
 	return nil
 }
 
-// Save 将当前配置持久化到 JSON 文件
+// Save 将当前配置持久化到 JSON 文件，并在开启自动备份时生成 backup 备份文件
 func (c *AppConfig) Save() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
@@ -183,6 +214,12 @@ func (c *AppConfig) Save() error {
 		return err
 	}
 
+	// 自动备份
+	if c.AutoBackupConfig && c.BaseDir != "" {
+		backupPath := filepath.Join(c.BaseDir, "config.backup.json")
+		_ = os.WriteFile(backupPath, data, 0644)
+	}
+
 	return os.WriteFile(c.configFilePath, data, 0644)
 }
 
@@ -192,6 +229,91 @@ func (c *AppConfig) Update(fn func(cfg *AppConfig)) error {
 	fn(c)
 	c.mu.Unlock()
 	return c.Save()
+}
+
+// ResetToDefault 恢复默认设置（保留现有数据/下载/日志目录）
+func (c *AppConfig) ResetToDefault() error {
+	def := DefaultConfig()
+	return c.Update(func(cfg *AppConfig) {
+		cfg.ConfigVersion = def.ConfigVersion
+		cfg.MaxConcurrentDownloads = def.MaxConcurrentDownloads
+		cfg.AutoSyncIntervalHours = def.AutoSyncIntervalHours
+		cfg.AutoSyncEnabled = def.AutoSyncEnabled
+		cfg.ProxyURL = def.ProxyURL
+		cfg.Theme = def.Theme
+		cfg.Language = def.Language
+		cfg.LogLevel = def.LogLevel
+		cfg.SafeLaunchPrompt = def.SafeLaunchPrompt
+		cfg.CloseToTray = def.CloseToTray
+		cfg.RememberWindowSize = def.RememberWindowSize
+		cfg.WindowWidth = def.WindowWidth
+		cfg.WindowHeight = def.WindowHeight
+		cfg.RememberWindowPosition = def.RememberWindowPosition
+		cfg.WindowX = def.WindowX
+		cfg.WindowY = def.WindowY
+		cfg.NotifyOnDownloadComplete = def.NotifyOnDownloadComplete
+		cfg.NotifyOnDownloadFailed = def.NotifyOnDownloadFailed
+		cfg.NotifyOnTrainerUpdate = def.NotifyOnTrainerUpdate
+		cfg.GlobalHotkeysEnabled = def.GlobalHotkeysEnabled
+		cfg.HotkeyToggleWindow = def.HotkeyToggleWindow
+		cfg.HotkeyOpenDownloads = def.HotkeyOpenDownloads
+		cfg.AutoBackupConfig = def.AutoBackupConfig
+	})
+}
+
+// ExportConfigJSON 导出当前配置为标准 JSON 字符串
+func (c *AppConfig) ExportConfigJSON() (string, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	data, err := json.MarshalIndent(c, "", "  ")
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+// ImportConfigJSON 从 JSON 字符串恢复配置并进行版本与合法性检查
+func (c *AppConfig) ImportConfigJSON(jsonStr string) error {
+	var imported AppConfig
+	if err := json.Unmarshal([]byte(jsonStr), &imported); err != nil {
+		return err
+	}
+
+	return c.Update(func(cfg *AppConfig) {
+		if imported.DownloadDir != "" {
+			cfg.DownloadDir = imported.DownloadDir
+		}
+		if imported.MaxConcurrentDownloads > 0 {
+			cfg.MaxConcurrentDownloads = imported.MaxConcurrentDownloads
+		}
+		cfg.AutoSyncIntervalHours = imported.AutoSyncIntervalHours
+		cfg.AutoSyncEnabled = imported.AutoSyncEnabled
+		cfg.ProxyURL = imported.ProxyURL
+		if imported.Theme != "" {
+			cfg.Theme = imported.Theme
+		}
+		if imported.Language != "" {
+			cfg.Language = imported.Language
+		}
+		if imported.LogLevel != "" {
+			cfg.LogLevel = imported.LogLevel
+		}
+		cfg.SafeLaunchPrompt = imported.SafeLaunchPrompt
+		cfg.CloseToTray = imported.CloseToTray
+		cfg.RememberWindowSize = imported.RememberWindowSize
+		cfg.RememberWindowPosition = imported.RememberWindowPosition
+		cfg.NotifyOnDownloadComplete = imported.NotifyOnDownloadComplete
+		cfg.NotifyOnDownloadFailed = imported.NotifyOnDownloadFailed
+		cfg.NotifyOnTrainerUpdate = imported.NotifyOnTrainerUpdate
+		cfg.GlobalHotkeysEnabled = imported.GlobalHotkeysEnabled
+		if imported.HotkeyToggleWindow != "" {
+			cfg.HotkeyToggleWindow = imported.HotkeyToggleWindow
+		}
+		if imported.HotkeyOpenDownloads != "" {
+			cfg.HotkeyOpenDownloads = imported.HotkeyOpenDownloads
+		}
+		cfg.AutoBackupConfig = imported.AutoBackupConfig
+	})
 }
 
 // GetDBPath 获取 SQLite 数据库文件绝对路径

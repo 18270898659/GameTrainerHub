@@ -101,3 +101,57 @@ func TestEnsureDirectories(t *testing.T) {
 	}
 }
 
+func TestConfigBackupResetExportImport(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gth_backup_test_*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	configPath := filepath.Join(tempDir, "config.json")
+	cfg, err := LoadConfig(configPath)
+	if err != nil {
+		t.Fatalf("LoadConfig failed: %v", err)
+	}
+
+	// 1. 验证保存后生成 backup 文件
+	err = cfg.Update(func(c *AppConfig) {
+		c.MaxConcurrentDownloads = 6
+		c.AutoBackupConfig = true
+	})
+	if err != nil {
+		t.Fatalf("Update failed: %v", err)
+	}
+	backupPath := filepath.Join(tempDir, "config.backup.json")
+	if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+		t.Fatalf("expected backup file %s to exist", backupPath)
+	}
+
+	// 2. 导出 JSON
+	jsonStr, err := cfg.ExportConfigJSON()
+	if err != nil {
+		t.Fatalf("ExportConfigJSON failed: %v", err)
+	}
+	if len(jsonStr) == 0 {
+		t.Fatal("expected non-empty JSON string")
+	}
+
+	// 3. 恢复默认设置
+	err = cfg.ResetToDefault()
+	if err != nil {
+		t.Fatalf("ResetToDefault failed: %v", err)
+	}
+	if cfg.MaxConcurrentDownloads != 3 {
+		t.Errorf("expected reset to 3, got %d", cfg.MaxConcurrentDownloads)
+	}
+
+	// 4. 从导出的 JSON 重新导入
+	err = cfg.ImportConfigJSON(jsonStr)
+	if err != nil {
+		t.Fatalf("ImportConfigJSON failed: %v", err)
+	}
+	if cfg.MaxConcurrentDownloads != 6 {
+		t.Errorf("expected imported 6, got %d", cfg.MaxConcurrentDownloads)
+	}
+}
+

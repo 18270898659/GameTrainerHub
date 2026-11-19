@@ -3,90 +3,101 @@
     <el-tabs v-model="activeTab" class="custom-tabs">
       <!-- 正在下载 / 活动任务 -->
       <el-tab-pane :label="t('downloads.tabActive', { count: store.downloadTasks.length })" name="active">
-        <div v-if="store.downloadTasks.length > 0" class="task-list">
-          <div
-            v-for="task in store.downloadTasks"
-            :key="task.id"
-            class="task-card"
-            :class="{ 'card-failed': task.status === 'failed', 'card-retrying': task.status === 'retrying' }"
-          >
-            <div class="task-header">
-              <div class="task-names">
-                <span class="task-game">{{ task.game_name || t('search.drawerTitle') }}</span>
-                <span class="task-file">{{ task.file_name }}</span>
+        <div v-if="store.downloadTasks.length > 0">
+          <div class="batch-bar">
+            <el-button size="small" plain @click="pauseAll">
+              <el-icon><VideoPause /></el-icon> {{ t('downloads.pauseAll') }}
+            </el-button>
+            <el-button size="small" type="primary" plain @click="resumeAll">
+              <el-icon><VideoPlay /></el-icon> {{ t('downloads.resumeAll') }}
+            </el-button>
+          </div>
+
+          <div class="task-list">
+            <div
+              v-for="task in store.downloadTasks"
+              :key="task.id"
+              class="task-card"
+              :class="{ 'card-failed': task.status === 'failed', 'card-retrying': task.status === 'retrying' }"
+            >
+              <div class="task-header">
+                <div class="task-names">
+                  <span class="task-game">{{ task.game_name || t('search.drawerTitle') }}</span>
+                  <span class="task-file">{{ task.file_name }}</span>
+                </div>
+                <div class="task-actions">
+                  <el-button
+                    v-if="task.status === 'downloading' || task.status === 'retrying'"
+                    size="small"
+                    plain
+                    @click="pauseTask(task.id)"
+                  >
+                    <el-icon><VideoPause /></el-icon> {{ t('downloads.pause') }}
+                  </el-button>
+                  <el-button
+                    v-else-if="task.status === 'paused'"
+                    size="small"
+                    type="primary"
+                    plain
+                    @click="resumeTask(task.id)"
+                  >
+                    <el-icon><VideoPlay /></el-icon> {{ t('downloads.resume') }}
+                  </el-button>
+                  <el-button
+                    v-else-if="task.status === 'failed'"
+                    size="small"
+                    type="warning"
+                    plain
+                    @click="resumeTask(task.id)"
+                  >
+                    <el-icon><RefreshRight /></el-icon> {{ t('downloads.retry') }}
+                  </el-button>
+                  <el-button
+                    v-if="task.status === 'completed'"
+                    size="small"
+                    type="success"
+                    plain
+                    @click="openFolder(task.save_path)"
+                  >
+                    <el-icon><FolderOpened /></el-icon> {{ t('downloads.locateFile') }}
+                  </el-button>
+                  <el-button
+                    size="small"
+                    type="danger"
+                    plain
+                    @click="cancelTask(task.id)"
+                  >
+                    <el-icon><Delete /></el-icon> {{ task.status === 'completed' ? t('downloads.clearRecord') : t('downloads.cancel') }}
+                  </el-button>
+                </div>
               </div>
-              <div class="task-actions">
-                <el-button
-                  v-if="task.status === 'downloading' || task.status === 'retrying'"
-                  size="small"
-                  plain
-                  @click="pauseTask(task.id)"
-                >
-                  <el-icon><VideoPause /></el-icon> {{ t('downloads.pause') }}
-                </el-button>
-                <el-button
-                  v-else-if="task.status === 'paused'"
-                  size="small"
-                  type="primary"
-                  plain
-                  @click="resumeTask(task.id)"
-                >
-                  <el-icon><VideoPlay /></el-icon> {{ t('downloads.resume') }}
-                </el-button>
-                <el-button
-                  v-else-if="task.status === 'failed'"
-                  size="small"
-                  type="warning"
-                  plain
-                  @click="resumeTask(task.id)"
-                >
-                  <el-icon><RefreshRight /></el-icon> {{ t('downloads.retry') }}
-                </el-button>
-                <el-button
-                  v-if="task.status === 'completed'"
-                  size="small"
-                  type="success"
-                  plain
-                  @click="openFolder(task.save_path)"
-                >
-                  <el-icon><FolderOpened /></el-icon> {{ t('downloads.locateFile') }}
-                </el-button>
-                <el-button
-                  size="small"
-                  type="danger"
-                  plain
-                  @click="cancelTask(task.id)"
-                >
-                  <el-icon><Delete /></el-icon> {{ task.status === 'completed' ? t('downloads.clearRecord') : t('downloads.cancel') }}
-                </el-button>
+
+              <div class="task-progress-wrap">
+                <el-progress
+                  :percentage="task.total_bytes > 0 ? Number(task.progress.toFixed(1)) : 0"
+                  :indeterminate="task.status === 'downloading' && task.total_bytes <= 0"
+                  :status="task.status === 'completed' ? 'success' : task.status === 'failed' ? 'exception' : task.status === 'retrying' ? 'warning' : ''"
+                  :stroke-width="8"
+                />
               </div>
-            </div>
 
-            <div class="task-progress-wrap">
-              <el-progress
-                :percentage="task.total_bytes > 0 ? Number(task.progress.toFixed(1)) : 0"
-                :indeterminate="task.status === 'downloading' && task.total_bytes <= 0"
-                :status="task.status === 'completed' ? 'success' : task.status === 'failed' ? 'exception' : task.status === 'retrying' ? 'warning' : ''"
-                :stroke-width="8"
-              />
-            </div>
+              <!-- 异常与重试提示条 -->
+              <div v-if="task.error_msg && (task.status === 'failed' || task.status === 'retrying')" class="task-error-alert">
+                <el-icon><WarningFilled /></el-icon>
+                <span>{{ task.error_msg }}</span>
+              </div>
 
-            <!-- 异常与重试提示条 -->
-            <div v-if="task.error_msg && (task.status === 'failed' || task.status === 'retrying')" class="task-error-alert">
-              <el-icon><WarningFilled /></el-icon>
-              <span>{{ task.error_msg }}</span>
-            </div>
-
-            <div class="task-footer">
-              <span class="task-bytes">
-                {{ formatBytes(task.downloaded_bytes) }} / {{ task.total_bytes > 0 ? formatBytes(task.total_bytes) : t('downloads.unknownSize') }}
-              </span>
-              <span v-if="task.status === 'downloading'" class="task-speed">
-                {{ formatBytes(task.speed_bytes_per_sec) }}/s
-              </span>
-              <span v-else class="task-status-text" :class="`status-${task.status}`">
-                {{ t('downloads.statusLabel') }}{{ getStatusLabel(task.status, task.retries) }}
-              </span>
+              <div class="task-footer">
+                <span class="task-bytes">
+                  {{ formatBytes(task.downloaded_bytes) }} / {{ task.total_bytes > 0 ? formatBytes(task.total_bytes) : t('downloads.unknownSize') }}
+                </span>
+                <span v-if="task.status === 'downloading'" class="task-speed">
+                  {{ formatBytes(task.speed_bytes_per_sec) }}/s
+                </span>
+                <span v-else class="task-status-text" :class="`status-${task.status}`">
+                  {{ t('downloads.statusLabel') }}{{ getStatusLabel(task.status, task.retries) }}
+                </span>
+              </div>
             </div>
           </div>
         </div>
@@ -153,6 +164,26 @@ async function loadHistory() {
   }
 }
 
+async function pauseAll() {
+  try {
+    await api.pauseAllDownloads()
+    await store.refreshDownloads()
+    ElMessage.success(t('downloads.pauseAllSuccess'))
+  } catch (e: any) {
+    ElMessage.error(e?.message || String(e))
+  }
+}
+
+async function resumeAll() {
+  try {
+    await api.resumeAllDownloads()
+    await store.refreshDownloads()
+    ElMessage.success(t('downloads.resumeAllSuccess'))
+  } catch (e: any) {
+    ElMessage.error(e?.message || String(e))
+  }
+}
+
 async function pauseTask(id: number) {
   try {
     await api.pauseDownload(id)
@@ -215,35 +246,41 @@ function getStatusLabel(status: string, retries?: number): string {
 </script>
 
 <style scoped>
+.batch-bar {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 16px;
+}
 .task-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 .task-card {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: 8px;
   padding: 16px;
-  transition: all 0.2s ease;
   box-shadow: var(--card-shadow);
+  transition: all 0.2s ease;
 }
-.card-failed {
-  border-color: rgba(239, 68, 68, 0.4);
+.task-card.card-retrying {
+  border-color: #f59e0b;
+  background: var(--bg-card-subtle);
 }
-.card-retrying {
-  border-color: rgba(234, 179, 8, 0.4);
+.task-card.card-failed {
+  border-color: #ef4444;
 }
 .task-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   margin-bottom: 12px;
 }
 .task-names {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 .task-game {
   font-size: 15px;
@@ -257,27 +294,21 @@ function getStatusLabel(status: string, retries?: number): string {
 .task-actions {
   display: flex;
   gap: 8px;
-  align-items: center;
 }
 .task-progress-wrap {
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 .task-error-alert {
-  margin-bottom: 8px;
-  padding: 6px 12px;
-  background: rgba(239, 68, 68, 0.12);
-  border: 1px solid rgba(239, 68, 68, 0.25);
-  border-radius: 4px;
-  color: #f87171;
-  font-size: 12px;
   display: flex;
   align-items: center;
   gap: 6px;
-}
-.card-retrying .task-error-alert {
-  background: rgba(234, 179, 8, 0.12);
-  border-color: rgba(234, 179, 8, 0.25);
-  color: #facc15;
+  font-size: 12px;
+  color: #ef4444;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 6px 10px;
+  border-radius: 4px;
+  margin-bottom: 10px;
+  border: 1px solid rgba(239, 68, 68, 0.2);
 }
 .task-footer {
   display: flex;
@@ -286,20 +317,18 @@ function getStatusLabel(status: string, retries?: number): string {
   color: var(--text-muted);
 }
 .task-speed {
+  font-family: monospace;
   color: var(--accent-cyan);
   font-weight: 600;
 }
 .task-status-text {
   font-weight: 500;
 }
+.status-retrying {
+  color: #f59e0b;
+}
 .status-failed {
   color: #ef4444;
-}
-.status-retrying {
-  color: #eab308;
-}
-.status-completed {
-  color: #22c55e;
 }
 .status-downloading {
   color: var(--accent-cyan);
@@ -307,10 +336,13 @@ function getStatusLabel(status: string, retries?: number): string {
 .empty-wrap {
   padding: 60px 0;
 }
+.custom-table {
+  background: transparent !important;
+}
 .hash-short {
   font-family: monospace;
-  font-size: 11px;
+  font-size: 12px;
+  color: var(--text-secondary);
   margin-right: 6px;
-  color: var(--text-muted);
 }
 </style>

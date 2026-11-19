@@ -9,7 +9,11 @@ import type {
   LocalTrainer,
   SecurityCardInfo,
   AppConfig,
-  Game
+  Game,
+  IntegrityResult,
+  DiagnosticReport,
+  LogEntry,
+  UpdateCheckResult
 } from '../types'
 
 // 声明全局 window 上的 Wails 桥接对象
@@ -40,6 +44,29 @@ declare global {
           GetConfig: () => Promise<AppConfig>
           SaveConfig: (cfg: AppConfig) => Promise<void>
           SelectDownloadDirectory: () => Promise<string>
+
+          PauseAllDownloads: () => Promise<void>
+          ResumeAllDownloads: () => Promise<void>
+          GetSearchHistory: (limit: number) => Promise<string[]>
+          AddSearchHistory: (keyword: string) => Promise<void>
+          RemoveSearchHistory: (keyword: string) => Promise<void>
+          ClearSearchHistory: () => Promise<void>
+          RecordGameVisit: (gameID: number) => Promise<void>
+          GetRecentGames: (limit: number) => Promise<Game[]>
+          GetRecentTrainers: (limit: number) => Promise<LocalTrainerDetail[]>
+          VerifyTrainerIntegrity: (localTrainerID: number) => Promise<IntegrityResult>
+          RelocateTrainer: (localTrainerID: number, newFilePath: string) => Promise<void>
+          IsTrainerRunning: (localTrainerID: number) => Promise<boolean>
+          StopTrainer: (localTrainerID: number) => Promise<void>
+          SelectTrainerExecutable: () => Promise<string>
+          CheckHotkeyConflict: (hotkeyStr: string) => Promise<boolean>
+          CheckForUpdates: () => Promise<UpdateCheckResult>
+          DiagnoseEnvironment: () => Promise<DiagnosticReport>
+          ExportDiagnostics: () => Promise<string>
+          GetRecentLogs: (limit: number, category: string) => Promise<LogEntry[]>
+          ExportConfig: () => Promise<string>
+          ImportConfig: (jsonStr: string) => Promise<void>
+          ResetConfig: () => Promise<void>
         }
       }
     }
@@ -265,9 +292,187 @@ export const api = {
     return ''
   },
 
+  async pauseAllDownloads(): Promise<void> {
+    if (isWails()) {
+      return window.go!.app!.App!.PauseAllDownloads()
+    }
+  },
+
+  async resumeAllDownloads(): Promise<void> {
+    if (isWails()) {
+      return window.go!.app!.App!.ResumeAllDownloads()
+    }
+  },
+
+  async getSearchHistory(limit: number = 20): Promise<string[]> {
+    if (isWails()) {
+      return window.go!.app!.App!.GetSearchHistory(limit)
+    }
+    return []
+  },
+
+  async addSearchHistory(keyword: string): Promise<void> {
+    if (isWails()) {
+      return window.go!.app!.App!.AddSearchHistory(keyword)
+    }
+  },
+
+  async removeSearchHistory(keyword: string): Promise<void> {
+    if (isWails()) {
+      return window.go!.app!.App!.RemoveSearchHistory(keyword)
+    }
+  },
+
+  async clearSearchHistory(): Promise<void> {
+    if (isWails()) {
+      return window.go!.app!.App!.ClearSearchHistory()
+    }
+  },
+
+  async recordGameVisit(gameID: number): Promise<void> {
+    if (isWails()) {
+      return window.go!.app!.App!.RecordGameVisit(gameID)
+    }
+  },
+
+  async getRecentGames(limit: number = 10): Promise<Game[]> {
+    if (isWails()) {
+      return window.go!.app!.App!.GetRecentGames(limit)
+    }
+    return []
+  },
+
+  async getRecentTrainers(limit: number = 10): Promise<LocalTrainerDetail[]> {
+    if (isWails()) {
+      return window.go!.app!.App!.GetRecentTrainers(limit)
+    }
+    return []
+  },
+
+  async verifyTrainerIntegrity(localTrainerID: number): Promise<IntegrityResult> {
+    if (isWails()) {
+      return window.go!.app!.App!.VerifyTrainerIntegrity(localTrainerID)
+    }
+    return {
+      trainer_id: localTrainerID,
+      file_path: '',
+      file_exists: false,
+      expected_sha256: '',
+      actual_sha256: '',
+      file_size: 0,
+      is_valid: false,
+      message: 'Not in desktop'
+    }
+  },
+
+  async relocateTrainer(localTrainerID: number, newFilePath: string): Promise<void> {
+    if (isWails()) {
+      return window.go!.app!.App!.RelocateTrainer(localTrainerID, newFilePath)
+    }
+  },
+
+  async isTrainerRunning(localTrainerID: number): Promise<boolean> {
+    if (isWails()) {
+      return window.go!.app!.App!.IsTrainerRunning(localTrainerID)
+    }
+    return false
+  },
+
+  async stopTrainer(localTrainerID: number): Promise<void> {
+    if (isWails()) {
+      return window.go!.app!.App!.StopTrainer(localTrainerID)
+    }
+  },
+
+  async selectTrainerExecutable(): Promise<string> {
+    if (isWails()) {
+      return window.go!.app!.App!.SelectTrainerExecutable()
+    }
+    return ''
+  },
+
+  async checkHotkeyConflict(hotkeyStr: string): Promise<boolean> {
+    if (isWails()) {
+      return window.go!.app!.App!.CheckHotkeyConflict(hotkeyStr)
+    }
+    return false
+  },
+
+  async checkForUpdates(): Promise<UpdateCheckResult> {
+    if (isWails()) {
+      return window.go!.app!.App!.CheckForUpdates()
+    }
+    return {
+      has_update: false,
+      current_version: '1.0.0',
+      latest_version: '1.0.0',
+      release_notes: '最新版本'
+    }
+  },
+
+  async diagnoseEnvironment(): Promise<DiagnosticReport> {
+    if (isWails()) {
+      return window.go!.app!.App!.DiagnoseEnvironment()
+    }
+    return {
+      generated_at: new Date().toISOString(),
+      app_version: '1.0.0',
+      os: 'windows',
+      arch: 'amd64',
+      download_dir: '',
+      download_dir_writable: true,
+      available_disk_bytes: 1024 * 1024 * 1024,
+      db_path: '',
+      db_integrity_ok: true,
+      active_downloads: 0,
+      local_trainers_count: 0,
+      favorites_count: 0
+    }
+  },
+
+  async exportDiagnostics(): Promise<string> {
+    if (isWails()) {
+      return window.go!.app!.App!.ExportDiagnostics()
+    }
+    return ''
+  },
+
+  async getRecentLogs(limit: number = 100, category: string = ''): Promise<LogEntry[]> {
+    if (isWails()) {
+      return window.go!.app!.App!.GetRecentLogs(limit, category)
+    }
+    return []
+  },
+
+  async exportConfig(): Promise<string> {
+    if (isWails()) {
+      return window.go!.app!.App!.ExportConfig()
+    }
+    return ''
+  },
+
+  async importConfig(jsonStr: string): Promise<void> {
+    if (isWails()) {
+      return window.go!.app!.App!.ImportConfig(jsonStr)
+    }
+  },
+
+  async resetConfig(): Promise<void> {
+    if (isWails()) {
+      return window.go!.app!.App!.ResetConfig()
+    }
+  },
+
   onDownloadProgress(callback: (task: DownloadTask) => void): (() => void) | undefined {
     if (typeof window !== 'undefined' && window.runtime?.EventsOn) {
       return window.runtime.EventsOn('download:progress', callback)
+    }
+    return undefined
+  },
+
+  onNavigate(callback: (route: string) => void): (() => void) | undefined {
+    if (typeof window !== 'undefined' && window.runtime?.EventsOn) {
+      return window.runtime.EventsOn('navigate:downloads', () => callback('/downloads'))
     }
     return undefined
   }

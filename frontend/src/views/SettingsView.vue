@@ -147,6 +147,104 @@
       </div>
     </div>
 
+    <!-- 全局快捷键模块 -->
+    <div class="settings-card">
+      <h3 class="settings-title">{{ t('settings.sectionHotkeys') }}</h3>
+
+      <div v-if="form" class="hotkey-settings-grid">
+        <div class="setting-item-row">
+          <div class="item-text">
+            <div class="item-label">{{ t('settings.hotkeysEnabled') }}</div>
+            <div class="item-desc">{{ t('settings.hotkeysEnabledDesc') }}</div>
+          </div>
+          <el-switch
+            v-model="form.global_hotkeys_enabled"
+            @change="saveSettingsSilently"
+          />
+        </div>
+
+        <template v-if="form.global_hotkeys_enabled">
+          <el-divider class="inner-divider" />
+          <div class="hotkey-inputs-row">
+            <div class="hotkey-field">
+              <label class="field-label">{{ t('settings.hotkeyToggleWindow') }}</label>
+              <el-input
+                v-model="form.hotkey_toggle_window"
+                placeholder="Alt+Q"
+                size="default"
+                @blur="validateHotkey(form.hotkey_toggle_window || '', 'toggle')"
+              >
+                <template #append>
+                  <span class="hotkey-badge">Global</span>
+                </template>
+              </el-input>
+            </div>
+
+            <div class="hotkey-field">
+              <label class="field-label">{{ t('settings.hotkeyOpenDownloads') }}</label>
+              <el-input
+                v-model="form.hotkey_open_downloads"
+                placeholder="Ctrl+J"
+                size="default"
+                @blur="validateHotkey(form.hotkey_open_downloads || '', 'downloads')"
+              >
+                <template #append>
+                  <span class="hotkey-badge">Global</span>
+                </template>
+              </el-input>
+            </div>
+          </div>
+        </template>
+      </div>
+    </div>
+
+    <!-- 系统通知偏好设置模块 -->
+    <div class="settings-card">
+      <h3 class="settings-title">{{ t('settings.sectionNotifications') }}</h3>
+
+      <div v-if="form" class="window-settings-grid">
+        <!-- 下载完成托盘气泡通知 -->
+        <div class="setting-item-row">
+          <div class="item-text">
+            <div class="item-label">{{ t('settings.notifyDownloadComplete') }}</div>
+            <div class="item-desc">{{ t('settings.notifyDownloadCompleteDesc') }}</div>
+          </div>
+          <el-switch
+            v-model="form.notify_on_download_complete"
+            @change="saveSettingsSilently"
+          />
+        </div>
+
+        <el-divider class="inner-divider" />
+
+        <!-- 下载失败托盘气泡通知 -->
+        <div class="setting-item-row">
+          <div class="item-text">
+            <div class="item-label">{{ t('settings.notifyDownloadFailed') }}</div>
+            <div class="item-desc">{{ t('settings.notifyDownloadFailedDesc') }}</div>
+          </div>
+          <el-switch
+            v-model="form.notify_on_download_failed"
+            @change="saveSettingsSilently"
+          />
+        </div>
+
+        <el-divider class="inner-divider" />
+
+        <!-- 修改器更新通知 -->
+        <div class="setting-item-row">
+          <div class="item-text">
+            <div class="item-label">{{ t('settings.notifyTrainerUpdate') }}</div>
+            <div class="item-desc">{{ t('settings.notifyTrainerUpdateDesc') }}</div>
+          </div>
+          <el-switch
+            v-model="form.notify_on_trainer_update"
+            @change="saveSettingsSilently"
+          />
+        </div>
+      </div>
+    </div>
+
     <!-- 语言设置模块 -->
     <div class="settings-card">
       <h3 class="settings-title">{{ t('settings.sectionLanguage') }}</h3>
@@ -188,6 +286,53 @@
       </div>
     </div>
 
+    <!-- 配置备份与恢复 -->
+    <div class="settings-card">
+      <h3 class="settings-title">{{ t('settings.sectionBackup') }}</h3>
+
+      <div v-if="form" class="backup-section">
+        <div class="setting-item-row mb-4">
+          <div class="item-text">
+            <div class="item-label">{{ t('settings.autoBackup') }}</div>
+            <div class="item-desc">{{ t('settings.autoBackupDesc') }}</div>
+          </div>
+          <el-switch
+            v-model="form.auto_backup_config"
+            @change="saveSettingsSilently"
+          />
+        </div>
+
+        <div class="backup-actions">
+          <el-button plain @click="exportConfig">
+            <el-icon><Download /></el-icon> {{ t('settings.exportConfig') }}
+          </el-button>
+          <el-button plain @click="importConfig">
+            <el-icon><Upload /></el-icon> {{ t('settings.importConfig') }}
+          </el-button>
+          <el-button type="danger" plain @click="confirmResetConfig">
+            <el-icon><RefreshLeft /></el-icon> {{ t('settings.resetConfig') }}
+          </el-button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 日志与故障诊断 -->
+    <div class="settings-card">
+      <h3 class="settings-title">{{ t('settings.sectionDiagnostics') }}</h3>
+
+      <div class="diagnostics-actions">
+        <el-button type="primary" plain @click="openDiagnosticsModal">
+          <el-icon><Connection /></el-icon> {{ t('settings.runDiagnostics') }}
+        </el-button>
+        <el-button plain @click="openLogsModal">
+          <el-icon><Document /></el-icon> {{ t('settings.viewLogs') }}
+        </el-button>
+        <el-button plain @click="exportDiagnosticsReport">
+          <el-icon><Share /></el-icon> {{ t('settings.exportDiagnostics') }}
+        </el-button>
+      </div>
+    </div>
+
     <!-- 保存按钮栏 -->
     <div class="actions-card">
       <el-button type="primary" size="large" :loading="saving" @click="saveSettings">
@@ -197,25 +342,110 @@
 
     <!-- 关于与声明 -->
     <div class="settings-card about-card">
-      <h3 class="settings-title">{{ t('settings.sectionAbout') }}</h3>
+      <div class="about-header">
+        <h3 class="settings-title">{{ t('settings.sectionAbout') }}</h3>
+        <el-button size="small" plain @click="checkUpdates" :loading="checkingUpdate">
+          <el-icon><Refresh /></el-icon> {{ t('settings.checkUpdate') }}
+        </el-button>
+      </div>
       <p class="about-p">{{ t('settings.aboutVersion') }}</p>
       <p class="about-p">{{ t('settings.aboutSource') }}</p>
       <p class="about-p text-gray">
         {{ t('settings.aboutDisclaimer') }}
       </p>
     </div>
+
+    <!-- 诊断结果弹窗 -->
+    <el-dialog
+      v-model="diagDialogVisible"
+      :title="t('settings.diagnosticsTitle')"
+      width="640px"
+      append-to-body
+    >
+      <div v-loading="runningDiag" class="diag-modal-body">
+        <div v-if="diagReport" class="diag-report-grid">
+          <div class="diag-item">
+            <span class="diag-label">操作系统 / 架构:</span>
+            <span class="diag-val">{{ diagReport.os }} / {{ diagReport.arch }}</span>
+          </div>
+          <div class="diag-item">
+            <span class="diag-label">存储可写状态:</span>
+            <el-tag size="small" :type="diagReport.download_dir_writable ? 'success' : 'danger'">
+              {{ diagReport.download_dir_writable ? '正常' : '不可写' }}
+            </el-tag>
+          </div>
+          <div class="diag-item">
+            <span class="diag-label">剩余磁盘空间:</span>
+            <span class="diag-val">{{ (diagReport.available_disk_bytes / 1024 / 1024 / 1024).toFixed(2) }} GB</span>
+          </div>
+          <div class="diag-item">
+            <span class="diag-label">数据库状态:</span>
+            <el-tag size="small" :type="diagReport.db_integrity_ok ? 'success' : 'danger'">
+              {{ diagReport.db_integrity_ok ? '完整正常 (OK)' : '数据库损坏' }}
+            </el-tag>
+          </div>
+          <div v-if="diagReport.network" class="diag-item full-width">
+            <span class="diag-label">源站连通性 (flingtrainer.com):</span>
+            <span class="diag-val">
+              DNS: {{ diagReport.network.dns_resolved ? '已解析' : '失败' }} ·
+              HTTP: {{ diagReport.network.is_reachable ? '可达 (' + diagReport.network.http_status + ')' : '异常' }} ·
+              延迟: {{ diagReport.network.latency_ms }} ms
+            </span>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="diagDialogVisible = false">{{ t('library.cancel') }}</el-button>
+        <el-button type="primary" @click="exportDiagnosticsReport">{{ t('settings.exportDiagnostics') }}</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 脱敏日志查看弹窗 -->
+    <el-dialog
+      v-model="logsDialogVisible"
+      :title="t('settings.logsTitle')"
+      width="780px"
+      append-to-body
+    >
+      <div class="logs-filter-bar">
+        <span class="filter-label">{{ t('settings.logFilterCategory') }}</span>
+        <el-radio-group v-model="logCategory" size="small" @change="refreshLogs">
+          <el-radio-button value="">{{ t('settings.logAll') }}</el-radio-button>
+          <el-radio-button value="download">download</el-radio-button>
+          <el-radio-button value="launch">launch</el-radio-button>
+          <el-radio-button value="search">search</el-radio-button>
+          <el-radio-button value="system">system</el-radio-button>
+        </el-radio-group>
+      </div>
+
+      <div class="log-entries-box">
+        <div v-for="(entry, idx) in logEntries" :key="idx" class="log-row">
+          <span class="log-time">{{ entry.timestamp }}</span>
+          <span class="log-level" :class="`lvl-${entry.level.toLowerCase()}`">[{{ entry.level }}]</span>
+          <span class="log-cat">[{{ entry.category }}]</span>
+          <span class="log-msg">{{ entry.message }}</span>
+        </div>
+        <div v-if="logEntries.length === 0" class="no-logs">暂无此分类日志</div>
+      </div>
+      <template #footer>
+        <el-button @click="logsDialogVisible = false">{{ t('library.cancel') }}</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { QuestionFilled, FolderOpened, FolderAdd, Moon, Sunny } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import {
+  QuestionFilled, FolderOpened, FolderAdd, Moon, Sunny,
+  Download, Upload, RefreshLeft, Connection, Document, Share, Refresh
+} from '@element-plus/icons-vue'
 import { useAppStore } from '../stores/appStore'
 import { api } from '../api/wails'
 import { t, currentLanguage, setLanguage, type SupportedLanguage } from '../i18n'
 import { currentTheme, setTheme, type ThemeMode } from '../theme'
-import type { AppConfig } from '../types'
+import type { AppConfig, DiagnosticReport, LogEntry } from '../types'
 
 const store = useAppStore()
 const form = ref<AppConfig | null>(null)
@@ -223,6 +453,17 @@ const saving = ref(false)
 const selectingDir = ref(false)
 const selectedLanguage = ref<SupportedLanguage>(currentLanguage.value)
 const selectedTheme = ref<ThemeMode>(currentTheme.value)
+
+// 诊断与更新
+const diagDialogVisible = ref(false)
+const runningDiag = ref(false)
+const diagReport = ref<DiagnosticReport | null>(null)
+
+const logsDialogVisible = ref(false)
+const logCategory = ref('')
+const logEntries = ref<LogEntry[]>([])
+
+const checkingUpdate = ref(false)
 
 onMounted(async () => {
   await store.refreshConfig()
@@ -253,7 +494,6 @@ async function openDownloadFolder() {
 async function changeDownloadDirectory() {
   if (!form.value) return
 
-  // 前端优先快速检查活跃下载任务
   if (store.activeDownloadsCount > 0) {
     ElMessage.warning(t('settings.activeDownloadConflict'))
     return
@@ -274,12 +514,10 @@ async function changeDownloadDirectory() {
   }
 }
 
-// 并发滑块发生改变时即时保存
 async function onSliderChange() {
   await saveSettingsSilently()
 }
 
-// 语言切换处理
 async function onLanguageChange(val: any) {
   const lang = val as SupportedLanguage
   setLanguage(lang)
@@ -290,7 +528,6 @@ async function onLanguageChange(val: any) {
   }
 }
 
-// 主题切换处理 (即时全局响应并持久化)
 async function onThemeChange(val: any) {
   const mode = val as ThemeMode
   setTheme(mode)
@@ -301,7 +538,130 @@ async function onThemeChange(val: any) {
   }
 }
 
-// 静默自动保存配置
+async function validateHotkey(keyStr: string, type: string) {
+  if (!keyStr) return
+  try {
+    const conflict = await api.checkHotkeyConflict(keyStr)
+    if (conflict) {
+      ElMessage.warning(`${keyStr} ${t('settings.hotkeyConflict')}`)
+    } else {
+      ElMessage.success(`${keyStr} ${t('settings.hotkeyNormal')}`)
+    }
+  } catch (e) {
+    console.warn('Hotkey conflict check failed', e)
+  }
+}
+
+async function exportConfig() {
+  try {
+    const jsonStr = await api.exportConfig()
+    await navigator.clipboard.writeText(jsonStr)
+    ElMessage.success(t('settings.exportSuccess'))
+  } catch (e: any) {
+    ElMessage.error('导出失败: ' + (e?.message || e))
+  }
+}
+
+async function importConfig() {
+  try {
+    const { value: jsonStr } = await ElMessageBox.prompt(
+      t('settings.importPrompt'),
+      t('settings.importConfig'),
+      {
+        confirmButtonText: t('settings.importConfig'),
+        cancelButtonText: t('library.cancel'),
+        inputType: 'textarea'
+      }
+    )
+    if (jsonStr) {
+      await api.importConfig(jsonStr.trim())
+      ElMessage.success(t('settings.importSuccess'))
+      await store.refreshConfig()
+      if (store.config) {
+        form.value = { ...store.config }
+      }
+    }
+  } catch (e: any) {
+    if (e !== 'cancel') {
+      ElMessage.error('导入失败: ' + (e?.message || e))
+    }
+  }
+}
+
+async function confirmResetConfig() {
+  try {
+    await ElMessageBox.confirm(
+      t('settings.resetConfirm'),
+      t('settings.resetConfig'),
+      {
+        confirmButtonText: t('settings.resetConfig'),
+        cancelButtonText: t('library.cancel'),
+        type: 'warning'
+      }
+    )
+    await api.resetConfig()
+    ElMessage.success(t('settings.resetSuccess'))
+    await store.refreshConfig()
+    if (store.config) {
+      form.value = { ...store.config }
+    }
+  } catch (e: any) {
+    if (e !== 'cancel') {
+      ElMessage.error('重置失败: ' + (e?.message || e))
+    }
+  }
+}
+
+async function openDiagnosticsModal() {
+  diagDialogVisible.value = true
+  runningDiag.value = true
+  try {
+    diagReport.value = await api.diagnoseEnvironment()
+  } catch (e: any) {
+    ElMessage.error('诊断异常: ' + (e?.message || e))
+  } finally {
+    runningDiag.value = false
+  }
+}
+
+async function exportDiagnosticsReport() {
+  try {
+    const filePath = await api.exportDiagnostics()
+    ElMessage.success(t('settings.exportDiagnosticsSuccess') + ': ' + filePath)
+  } catch (e: any) {
+    ElMessage.error('导出报告失败: ' + (e?.message || e))
+  }
+}
+
+async function openLogsModal() {
+  logsDialogVisible.value = true
+  await refreshLogs()
+}
+
+async function refreshLogs() {
+  try {
+    logEntries.value = await api.getRecentLogs(100, logCategory.value)
+  } catch (e: any) {
+    console.error('Failed to get logs', e)
+  }
+}
+
+async function checkUpdates() {
+  checkingUpdate.value = true
+  try {
+    const res = await api.checkForUpdates()
+    if (res.has_update) {
+      ElMessage.info(t('settings.updateAvailable', { version: res.latest_version, current: res.current_version }))
+    } else {
+      ElMessage.success(t('settings.updateUpToDate', { version: res.current_version }))
+    }
+  } catch (e: any) {
+    ElMessage.error('检查更新失败: ' + (e?.message || e))
+  } finally {
+    checkingUpdate.value = false
+  }
+}
+
 async function saveSettingsSilently() {
   if (!form.value) return
   try {
@@ -314,7 +674,6 @@ async function saveSettingsSilently() {
   }
 }
 
-// 手动点击保存配置
 async function saveSettings() {
   if (!form.value) return
   saving.value = true
@@ -349,74 +708,61 @@ async function saveSettings() {
 .settings-title {
   margin: 0 0 20px 0;
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--text-main);
 }
-
-/* 提示图标与 Tooltip */
 .field-label-with-tip {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-size: 14px;
-  color: var(--text-secondary);
   font-weight: 500;
+  color: var(--text-main);
 }
 .tip-icon {
-  font-size: 15px;
-  color: var(--accent-cyan);
+  font-size: 14px;
+  color: var(--text-muted);
   cursor: pointer;
-  transition: color 0.2s;
+  outline: none;
 }
-.tip-icon:hover {
-  color: var(--accent-hover);
-}
-
-/* 存储路径卡片 */
 .path-display-card {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  background: var(--bg-input);
+  gap: 12px;
+  background: var(--bg-card-subtle);
   border: 1px solid var(--border-color);
   border-radius: 6px;
-  padding: 10px 14px;
+  padding: 8px 12px;
   width: 100%;
   box-sizing: border-box;
 }
 .path-display-text {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   cursor: pointer;
-  overflow: hidden;
   flex: 1;
-  transition: all 0.2s ease;
+  min-width: 0;
 }
 .path-display-text:hover .path-text {
   color: var(--accent-cyan);
   text-decoration: underline;
 }
 .folder-icon {
-  font-size: 18px;
+  font-size: 16px;
   color: var(--accent-cyan);
   flex-shrink: 0;
 }
 .path-text {
-  font-family: Consolas, "Courier New", monospace;
+  font-family: monospace;
   font-size: 13px;
-  color: var(--text-primary);
-  word-break: break-all;
+  color: var(--text-main);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  transition: color 0.2s ease;
 }
-.change-path-btn {
-  flex-shrink: 0;
-}
-
-/* 并发滑块水平行 */
 .slider-horizontal-row {
   display: flex;
   align-items: center;
@@ -424,39 +770,36 @@ async function saveSettings() {
   width: 100%;
 }
 .slider-container {
-  width: 280px;
-  flex-shrink: 0;
+  flex: 0 0 260px;
 }
 .slider-val-tag {
   font-size: 13px;
   font-weight: 600;
   color: var(--accent-cyan);
-  background: var(--accent-tag-bg);
-  border: 1px solid var(--accent-tag-border);
-  padding: 2px 10px;
-  border-radius: 4px;
-  white-space: nowrap;
-  flex-shrink: 0;
+  min-width: 60px;
 }
 .slider-hint-text {
   font-size: 12px;
   color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-shrink: 1;
 }
-
-/* 窗口设置模块 */
-.window-settings-grid {
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.switch-extra-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.window-settings-grid, .hotkey-settings-grid {
   display: flex;
   flex-direction: column;
 }
 .setting-item-row {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  padding: 8px 0;
+  align-items: center;
+  padding: 4px 0;
 }
 .item-text {
   display: flex;
@@ -466,7 +809,7 @@ async function saveSettings() {
 .item-label {
   font-size: 14px;
   font-weight: 500;
-  color: var(--text-primary);
+  color: var(--text-main);
 }
 .item-desc {
   font-size: 12px;
@@ -474,62 +817,113 @@ async function saveSettings() {
 }
 .inner-divider {
   margin: 12px 0;
-  border-color: var(--border-subtle);
+  border-color: var(--border-color);
 }
-
-/* 语言与主题选择 */
-.language-selector-wrap,
-.theme-selector-wrap {
+.hotkey-inputs-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-top: 12px;
+}
+.hotkey-field {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 6px;
 }
-.theme-btn-icon {
-  margin-right: 6px;
-  vertical-align: middle;
-}
-
-/* 开关行 */
-.switch-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-}
-.switch-extra-hint {
+.field-label {
   font-size: 13px;
   color: var(--text-muted);
 }
-
-.actions-card {
-  display: flex;
-  justify-content: flex-start;
+.hotkey-badge {
+  font-size: 11px;
+  color: var(--text-muted);
 }
-
-.about-card {
-  background: var(--bg-card-subtle);
+.backup-actions, .diagnostics-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.about-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 .about-p {
+  margin: 6px 0;
   font-size: 13px;
   color: var(--text-muted);
-  line-height: 1.6;
-  margin: 6px 0;
 }
-.text-gray {
-  color: var(--text-gray);
+.diag-report-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+.diag-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.diag-item.full-width {
+  grid-column: span 2;
+}
+.diag-label {
   font-size: 12px;
+  color: var(--text-muted);
 }
-</style>
-
-<style>
-/* 全局 Tooltip 气泡自定义样式，确保下载路径说明完整展示不截断 */
-.download-dir-tooltip {
-  max-width: 420px !important;
-  white-space: pre-line !important;
-  line-height: 1.6 !important;
-  font-size: 12px !important;
-  padding: 10px 14px !important;
-  background-color: var(--bg-modal) !important;
-  color: var(--text-main) !important;
-  border: 1px solid var(--border-color) !important;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4) !important;
+.diag-val {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-main);
+}
+.logs-filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.log-entries-box {
+  background: var(--code-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 12px;
+  height: 340px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.log-row {
+  display: flex;
+  gap: 8px;
+  line-height: 1.4;
+}
+.log-time {
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.log-level {
+  font-weight: 600;
+  white-space: nowrap;
+}
+.lvl-info { color: #3b82f6; }
+.lvl-warn { color: #f59e0b; }
+.lvl-error { color: #ef4444; }
+.log-cat {
+  color: var(--accent-cyan);
+  white-space: nowrap;
+}
+.log-msg {
+  color: var(--code-text);
+  word-break: break-all;
+}
+.no-logs {
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: 80px;
+}
+.mb-4 {
+  margin-bottom: 16px;
 }
 </style>

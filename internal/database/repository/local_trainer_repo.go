@@ -119,6 +119,16 @@ func (r *LocalTrainerRepository) Delete(ctx context.Context, id int64) error {
 	return err
 }
 
+// Update 更新本地修改器记录（例如重新定位路径、文件大小、哈希）
+func (r *LocalTrainerRepository) Update(ctx context.Context, lt *model.LocalTrainer) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE local_trainers
+		SET file_path = ?, file_size = ?, sha256 = ?, source_name = ?, is_custom = ?
+		WHERE id = ?
+	`, lt.FilePath, lt.FileSize, lt.SHA256, lt.SourceName, lt.IsCustom, lt.ID)
+	return err
+}
+
 // RecordRun 记录启动一次修改器
 func (r *LocalTrainerRepository) RecordRun(ctx context.Context, id int64) error {
 	now := time.Now()

@@ -9,7 +9,7 @@
         <el-button :loading="scanningSteam" plain @click="scanSteam">
           <el-icon><Monitor /></el-icon> {{ t('library.scanSteam') }}
         </el-button>
-        <el-button type="primary" plain @click="promptImport">
+        <el-button type="primary" plain @click="selectAndImportExe">
           <el-icon><Plus /></el-icon> {{ t('library.importExe') }}
         </el-button>
       </div>
@@ -21,16 +21,38 @@
         v-for="item in store.localTrainers"
         :key="item.local_trainer.id"
         class="local-card"
+        :class="{ 'card-missing': item.file_exists === false, 'card-running': item.is_running }"
       >
         <div class="local-card-thumb">
           <img :src="item.game?.cover_url || defaultThumb" />
-          <el-tag
-            :type="item.local_trainer.is_custom ? 'warning' : 'success'"
-            size="small"
-            class="source-badge"
-          >
-            {{ item.local_trainer.source_name }}
-          </el-tag>
+          <div class="badge-group-top">
+            <el-tag
+              :type="item.local_trainer.is_custom ? 'warning' : 'success'"
+              size="small"
+              class="source-badge"
+            >
+              {{ item.local_trainer.source_name }}
+            </el-tag>
+            <!-- 运行状态徽章 -->
+            <el-tag
+              v-if="item.is_running"
+              type="danger"
+              effect="dark"
+              size="small"
+              class="status-badge"
+            >
+              {{ t('library.statusRunning') }}
+            </el-tag>
+            <!-- 丢失状态徽章 -->
+            <el-tag
+              v-else-if="item.file_exists === false"
+              type="danger"
+              size="small"
+              class="status-badge"
+            >
+              {{ t('library.fileMissing') }}
+            </el-tag>
+          </div>
         </div>
 
         <div class="local-card-info">
@@ -39,38 +61,74 @@
             {{ getFileName(item.local_trainer.file_path) }}
           </div>
 
+          <div v-if="item.target_game_version" class="target-version-tag">
+            <el-tag size="small" type="info" effect="plain">
+              {{ t('library.targetGameVersion', { version: item.target_game_version }) }}
+            </el-tag>
+          </div>
+
           <div class="stats-row">
             <span>{{ t('library.runCount') }} {{ item.local_trainer.run_count }}</span>
             <span>{{ t('library.fileSize') }} {{ formatBytes(item.local_trainer.file_size) }}</span>
           </div>
 
           <div class="card-btns">
+            <!-- 运行状态下提供停止按钮，否则提供安全启动 -->
             <el-button
+              v-if="item.is_running"
+              type="danger"
+              size="small"
+              @click="confirmStop(item.local_trainer.id)"
+            >
+              <el-icon><VideoPause /></el-icon> {{ t('library.stopTrainer') }}
+            </el-button>
+            <el-button
+              v-else-if="item.file_exists !== false"
               type="primary"
               size="small"
               @click="openLaunchModal(item.local_trainer.id)"
             >
               <el-icon><VideoPlay /></el-icon> {{ t('library.launchBtn') }}
             </el-button>
+
+            <!-- 文件丢失时提供重新定位按钮 -->
             <el-button
+              v-if="item.file_exists === false"
+              type="warning"
+              size="small"
+              @click="relocateTrainerFile(item.local_trainer.id)"
+            >
+              <el-icon><Connection /></el-icon> {{ t('library.relocate') }}
+            </el-button>
+
+            <el-button
+              v-if="item.file_exists !== false"
               size="small"
               plain
               @click="openFolder(item.local_trainer.file_path)"
             >
               {{ t('library.folderBtn') }}
             </el-button>
-            <el-popconfirm
-              :title="t('library.deleteConfirm')"
-              :confirm-button-text="t('library.delete')"
-              :cancel-button-text="t('library.cancel')"
-              @confirm="deleteTrainer(item.local_trainer.id)"
+
+            <!-- 校验完整性按钮 -->
+            <el-button
+              size="small"
+              plain
+              :title="t('library.verifyIntegrity')"
+              @click="checkIntegrity(item.local_trainer.id)"
             >
-              <template #reference>
-                <el-button size="small" type="danger" link>
-                  <el-icon><Delete /></el-icon>
-                </el-button>
-              </template>
-            </el-popconfirm>
+              <el-icon><Check /></el-icon>
+            </el-button>
+
+            <!-- 删除按钮 -->
+            <el-button
+              size="small"
+              type="danger"
+              link
+              @click="promptDelete(item.local_trainer.id)"
+            >
+              <el-icon><Delete /></el-icon>
+            </el-button>
           </div>
         </div>
       </div>
@@ -84,6 +142,56 @@
       </el-empty>
     </div>
 
+    <!-- 完整性校验结果弹窗 -->
+    <el-dialog
+      v-model="integrityDialogVisible"
+      :title="t('library.integrityTitle')"
+      width="560px"
+      append-to-body
+    >
+      <div v-loading="checkingIntegrity" class="integrity-dialog-body">
+        <div v-if="integrityResult" class="integrity-content">
+          <el-alert
+            :type="integrityResult.is_valid ? 'success' : 'error'"
+            :title="integrityResult.is_valid ? t('library.integrityMatch') : t('library.integrityMismatch')"
+            :closable="false"
+            show-icon
+            class="mb-4"
+          />
+          <div class="hash-field">
+            <span class="hash-label">{{ t('library.expectedHash') }}</span>
+            <code class="hash-code">{{ integrityResult.expected_sha256 }}</code>
+          </div>
+          <div class="hash-field mt-2">
+            <span class="hash-label">{{ t('library.actualHash') }}</span>
+            <code class="hash-code">{{ integrityResult.actual_sha256 }}</code>
+          </div>
+        </div>
+      </div>
+      <template #footer>
+        <el-button @click="integrityDialogVisible = false">{{ t('library.cancel') }}</el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 删除确认弹窗 (包含物理删除勾选) -->
+    <el-dialog
+      v-model="deleteDialogVisible"
+      :title="t('library.deleteDialogTitle')"
+      width="440px"
+      append-to-body
+    >
+      <div class="delete-dialog-content">
+        <p class="delete-warning-text">{{ t('library.deleteConfirm') }}</p>
+        <el-checkbox v-model="deletePhysicalFile">
+          {{ t('library.deleteFileCheck') }}
+        </el-checkbox>
+      </div>
+      <template #footer>
+        <el-button @click="deleteDialogVisible = false">{{ t('library.cancel') }}</el-button>
+        <el-button type="danger" @click="confirmDelete">{{ t('library.delete') }}</el-button>
+      </template>
+    </el-dialog>
+
     <!-- Security Modal Reference -->
     <SecurityModal ref="securityModalRef" />
   </div>
@@ -91,12 +199,13 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { Monitor, Plus, VideoPlay, Delete } from '@element-plus/icons-vue'
+import { Monitor, Plus, VideoPlay, VideoPause, Delete, Check, Connection } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAppStore } from '../stores/appStore'
 import { api } from '../api/wails'
 import { t } from '../i18n'
 import SecurityModal from '../components/SecurityModal.vue'
+import type { IntegrityResult } from '../types'
 
 defineOptions({ name: 'LibraryView' })
 
@@ -104,6 +213,16 @@ const store = useAppStore()
 const scanningSteam = ref(false)
 const securityModalRef = ref<InstanceType<typeof SecurityModal> | null>(null)
 const defaultThumb = 'https://flingtrainer.com/wp-content/uploads/2020/12/header-7-200x200.jpg'
+
+// 完整性校验状态
+const integrityDialogVisible = ref(false)
+const checkingIntegrity = ref(false)
+const integrityResult = ref<IntegrityResult | null>(null)
+
+// 删除对话框状态
+const deleteDialogVisible = ref(false)
+const deletingTrainerID = ref<number | null>(null)
+const deletePhysicalFile = ref(false)
 
 onMounted(() => {
   store.refreshLocalTrainers()
@@ -115,6 +234,23 @@ async function openLaunchModal(id: number) {
     securityModalRef.value?.open(card)
   } catch (e: any) {
     ElMessage.error(e?.message || String(e))
+  }
+}
+
+async function confirmStop(id: number) {
+  try {
+    await ElMessageBox.confirm(t('library.stopConfirm'), t('library.stopTrainer'), {
+      confirmButtonText: t('library.stopTrainer'),
+      cancelButtonText: t('library.cancel'),
+      type: 'warning'
+    })
+    await api.stopTrainer(id)
+    ElMessage.success(t('library.stopSuccess'))
+    await store.refreshLocalTrainers()
+  } catch (e: any) {
+    if (e !== 'cancel') {
+      ElMessage.error(t('library.stopFailed') + (e?.message || e))
+    }
   }
 }
 
@@ -139,28 +275,57 @@ async function scanSteam() {
   }
 }
 
-async function promptImport() {
+async function selectAndImportExe() {
   try {
-    const { value: filePath } = await ElMessageBox.prompt(t('library.importExe'), t('library.importExe'), {
-      confirmButtonText: t('library.importExe'),
-      cancelButtonText: t('library.cancel'),
-      inputPattern: /^.+\.exe$/i,
-      inputErrorMessage: '.exe'
-    })
-
-    if (filePath) {
-      await api.importCustomTrainer(1, filePath.trim())
+    const selected = await api.selectTrainerExecutable()
+    if (selected) {
+      await api.importCustomTrainer(1, selected.trim())
       ElMessage.success(t('settings.savedSuccess'))
       await store.refreshLocalTrainers()
     }
-  } catch {
-    // 用户取消输入
+  } catch (e: any) {
+    ElMessage.error('导入修改器失败: ' + (e?.message || e))
   }
 }
 
-async function deleteTrainer(id: number) {
+async function relocateTrainerFile(id: number) {
   try {
-    await api.deleteLocalTrainer(id, false)
+    const newPath = await api.selectTrainerExecutable()
+    if (!newPath) return
+    await api.relocateTrainer(id, newPath)
+    ElMessage.success(t('library.relocateSuccess'))
+    await store.refreshLocalTrainers()
+  } catch (e: any) {
+    ElMessage.error(t('library.relocateFailed') + (e?.message || e))
+  }
+}
+
+async function checkIntegrity(id: number) {
+  integrityDialogVisible.value = true
+  checkingIntegrity.value = true
+  integrityResult.value = null
+  try {
+    integrityResult.value = await api.verifyTrainerIntegrity(id)
+  } catch (e: any) {
+    ElMessage.error('校验失败: ' + (e?.message || e))
+    integrityDialogVisible.value = false
+  } finally {
+    checkingIntegrity.value = false
+  }
+}
+
+function promptDelete(id: number) {
+  deletingTrainerID.value = id
+  deletePhysicalFile.value = false
+  deleteDialogVisible.value = true
+}
+
+async function confirmDelete() {
+  if (!deletingTrainerID.value) return
+  try {
+    await api.deleteLocalTrainer(deletingTrainerID.value, deletePhysicalFile.value)
+    ElMessage.success(t('settings.savedSuccess'))
+    deleteDialogVisible.value = false
     await store.refreshLocalTrainers()
   } catch (e: any) {
     ElMessage.error(e?.message || String(e))
@@ -187,15 +352,15 @@ function formatBytes(bytes: number): string {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: rgba(30, 41, 59, 0.4);
+  background: var(--bg-card);
   padding: 12px 16px;
   border-radius: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--border-color);
   margin-bottom: 20px;
 }
 .lib-count {
   font-size: 14px;
-  color: #94a3b8;
+  color: var(--text-muted);
 }
 .lib-count strong {
   color: var(--accent-cyan);
@@ -222,6 +387,13 @@ function formatBytes(bytes: number): string {
   border-color: var(--border-hover);
   background: var(--bg-card-hover);
 }
+.local-card.card-missing {
+  border-color: rgba(239, 68, 68, 0.4);
+}
+.local-card.card-running {
+  border-color: rgba(239, 68, 68, 0.6);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.2);
+}
 .local-card-thumb {
   position: relative;
   height: 110px;
@@ -232,10 +404,12 @@ function formatBytes(bytes: number): string {
   height: 100%;
   object-fit: cover;
 }
-.source-badge {
+.badge-group-top {
   position: absolute;
   top: 8px;
   right: 8px;
+  display: flex;
+  gap: 6px;
 }
 .local-card-info {
   padding: 14px;
@@ -252,10 +426,13 @@ function formatBytes(bytes: number): string {
 .file-name {
   font-size: 12px;
   color: var(--text-muted);
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.target-version-tag {
+  margin-bottom: 10px;
 }
 .stats-row {
   display: flex;
@@ -277,5 +454,42 @@ function formatBytes(bytes: number): string {
   color: var(--text-muted);
   margin-top: 6px;
 }
+.integrity-dialog-body {
+  min-height: 100px;
+}
+.hash-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.hash-label {
+  font-size: 12px;
+  color: var(--text-muted);
+}
+.hash-code {
+  font-family: monospace;
+  font-size: 11px;
+  background: var(--code-bg);
+  color: var(--code-text);
+  padding: 6px 8px;
+  border-radius: 4px;
+  word-break: break-all;
+  border: 1px solid var(--border-color);
+}
+.delete-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.delete-warning-text {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-main);
+}
+.mb-4 {
+  margin-bottom: 16px;
+}
+.mt-2 {
+  margin-top: 8px;
+}
 </style>
-

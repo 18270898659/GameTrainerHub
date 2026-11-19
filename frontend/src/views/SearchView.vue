@@ -38,6 +38,24 @@
         </div>
       </div>
 
+      <!-- 最近访问游戏快捷标签 -->
+      <div v-if="store.recentVisited.length > 0" class="history-bar visited-bar">
+        <span class="history-label">{{ t('search.visitedGames') }}</span>
+        <div class="history-tags">
+          <el-tag
+            v-for="vg in store.recentVisited"
+            :key="vg.id"
+            type="warning"
+            effect="plain"
+            size="small"
+            class="visited-tag"
+            @click="clickVisited(vg)"
+          >
+            {{ vg.name_cn || vg.name_en }}
+          </el-tag>
+        </div>
+      </div>
+
       <div class="filter-bar">
         <el-checkbox v-model="store.localOnly" @change="handleSearch">{{ t('search.localOnly') }}</el-checkbox>
         <el-radio-group v-model="store.selectedSource" size="small" @change="handleSearch">
@@ -52,7 +70,7 @@
       <div v-if="store.results.length > 0" class="results-grid">
         <div
           v-for="item in store.results"
-          :key="item.slug"
+          :key="item.slug || item.game_id"
           class="result-card"
           @click="store.openDetail(item)"
         >
@@ -60,12 +78,24 @@
             <img :src="item.cover_url || defaultThumb" :alt="item.game_name_en" />
             <el-tag v-if="item.is_downloaded" type="success" size="small" class="dl-tag">{{ t('search.downloaded') }}</el-tag>
             <el-tag v-else-if="item.is_online_only" type="info" size="small" class="dl-tag">{{ t('home.tagOnline') }}</el-tag>
+            <!-- 收藏按钮 -->
+            <button
+              class="star-btn"
+              :class="{ 'is-active': item.is_favorite }"
+              :title="item.is_favorite ? t('search.unfavorite') : t('search.favorite')"
+              @click.stop="store.toggleFavorite(item)"
+            >
+              <el-icon :size="16">
+                <StarFilled v-if="item.is_favorite" />
+                <Star v-else />
+              </el-icon>
+            </button>
           </div>
           <div class="result-body">
             <div class="result-name-cn">{{ item.game_name_cn || item.game_name_en }}</div>
             <div class="result-name-en">{{ item.game_name_en }}</div>
             <div class="result-meta">
-              <span class="source-pill">{{ item.source_id.toUpperCase() }}</span>
+              <span class="source-pill">{{ (item.source_id || 'FLiNG').toUpperCase() }}</span>
               <span class="score-tag">{{ t('search.matchScore', { score: Math.min(100, Math.round(item.score)) }) }}</span>
             </div>
           </div>
@@ -92,7 +122,21 @@
         <div class="detail-header">
           <img :src="store.selectedGame.cover_url || defaultThumb" class="detail-cover" />
           <div class="detail-title-group">
-            <h3>{{ store.selectedGame.game_name_cn || store.selectedGame.game_name_en }}</h3>
+            <div class="drawer-title-row">
+              <h3>{{ store.selectedGame.game_name_cn || store.selectedGame.game_name_en }}</h3>
+              <el-button
+                circle
+                size="small"
+                :type="store.selectedGame.is_favorite ? 'warning' : 'default'"
+                :title="store.selectedGame.is_favorite ? t('search.unfavorite') : t('search.favorite')"
+                @click="store.toggleFavorite(store.selectedGame)"
+              >
+                <el-icon>
+                  <StarFilled v-if="store.selectedGame.is_favorite" />
+                  <Star v-else />
+                </el-icon>
+              </el-button>
+            </div>
             <p>{{ store.selectedGame.game_name_en }}</p>
           </div>
         </div>
@@ -147,9 +191,10 @@
 <script setup lang="ts">
 import { onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { Search, Download } from '@element-plus/icons-vue'
+import { Search, Download, Star, StarFilled } from '@element-plus/icons-vue'
 import { useSearchStore } from '../stores/searchStore'
 import { t } from '../i18n'
+import type { Game } from '../types'
 
 defineOptions({ name: 'SearchView' })
 
@@ -178,6 +223,10 @@ function handleSearch() {
 function clickHistory(kw: string) {
   store.executeSearch(kw)
 }
+
+function clickVisited(vg: Game) {
+  store.executeSearch(vg.name_cn || vg.name_en)
+}
 </script>
 
 <style scoped>
@@ -191,9 +240,12 @@ function clickHistory(kw: string) {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
   padding: 0 4px;
   flex-wrap: wrap;
+}
+.visited-bar {
+  margin-bottom: 12px;
 }
 .history-label {
   font-size: 12px;
@@ -206,16 +258,21 @@ function clickHistory(kw: string) {
   gap: 6px;
   flex-wrap: wrap;
 }
-.history-tag {
+.history-tag, .visited-tag {
   cursor: pointer;
+  transition: all 0.2s ease;
+}
+.history-tag {
   background: var(--bg-card);
   border-color: var(--border-color);
   color: var(--text-secondary);
-  transition: all 0.2s ease;
 }
 .history-tag:hover {
   border-color: var(--accent-cyan);
   color: var(--accent-cyan);
+}
+.visited-tag:hover {
+  transform: translateY(-1px);
 }
 .clear-btn {
   font-size: 11px;
@@ -243,6 +300,7 @@ function clickHistory(kw: string) {
   cursor: pointer;
   transition: all 0.2s ease;
   box-shadow: var(--card-shadow);
+  position: relative;
 }
 .result-card:hover {
   transform: translateY(-2px);
@@ -263,6 +321,33 @@ function clickHistory(kw: string) {
   position: absolute;
   top: 8px;
   right: 8px;
+}
+.star-btn {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #fff;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+.star-btn:hover {
+  background: rgba(0, 0, 0, 0.75);
+  transform: scale(1.1);
+  color: #fbbf24;
+}
+.star-btn.is-active {
+  color: #fbbf24;
+  background: rgba(0, 0, 0, 0.7);
+  border-color: #fbbf24;
 }
 .result-body {
   padding: 12px;
@@ -319,8 +404,19 @@ function clickHistory(kw: string) {
   border-radius: 6px;
   object-fit: cover;
 }
-.detail-title-group h3 {
-  margin: 0 0 4px 0;
+.detail-title-group {
+  flex: 1;
+  min-width: 0;
+}
+.drawer-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.drawer-title-row h3 {
+  margin: 0;
   font-size: 16px;
   color: var(--text-main);
 }

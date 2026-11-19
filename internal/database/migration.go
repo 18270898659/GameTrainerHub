@@ -180,6 +180,27 @@ CREATE VIRTUAL TABLE IF NOT EXISTS game_search_fts USING fts5(
 );
 `,
 	},
+	{
+		Version: 2,
+		Name:    "002_phase2_extensions",
+		SQL: `
+-- 13. 搜索历史表
+CREATE TABLE IF NOT EXISTS search_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    keyword TEXT NOT NULL UNIQUE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_search_history_created ON search_history(created_at DESC);
+
+-- 14. 最近访问游戏表
+CREATE TABLE IF NOT EXISTS visited_games (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    game_id INTEGER NOT NULL UNIQUE REFERENCES games(id) ON DELETE CASCADE,
+    visited_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_visited_games_time ON visited_games(visited_at DESC);
+`,
+	},
 }
 
 // Migrate 执行数据库版本迁移

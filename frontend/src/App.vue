@@ -69,13 +69,14 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { House, Search, Download, Collection, Setting } from '@element-plus/icons-vue'
 import { useAppStore } from './stores/appStore'
 import { api } from './api/wails'
 import { t, currentElementLocale, setLanguage, type SupportedLanguage } from './i18n'
 
 const route = useRoute()
+const router = useRouter()
 const store = useAppStore()
 
 const pageTitle = computed(() => {
@@ -90,6 +91,7 @@ const pageTitle = computed(() => {
 })
 
 let unregisterEvents: (() => void) | undefined
+let unregisterNavigate: (() => void) | undefined
 
 onMounted(async () => {
   await store.refreshConfig()
@@ -103,11 +105,19 @@ onMounted(async () => {
   unregisterEvents = api.onDownloadProgress((task) => {
     store.handleProgressUpdate(task)
   })
+
+  // 注册快捷键导航事件 (如 Ctrl+J 直达下载管理)
+  unregisterNavigate = api.onNavigate((targetRoute) => {
+    router.push(targetRoute)
+  })
 })
 
 onUnmounted(() => {
   if (unregisterEvents) {
     unregisterEvents()
+  }
+  if (unregisterNavigate) {
+    unregisterNavigate()
   }
 })
 </script>
