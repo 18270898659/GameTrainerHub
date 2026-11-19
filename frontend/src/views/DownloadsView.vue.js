@@ -4,6 +4,7 @@ import { VideoPause, VideoPlay, Delete, RefreshRight, FolderOpened, WarningFille
 import { ElMessage } from 'element-plus';
 import { useAppStore } from '../stores/appStore';
 import { api } from '../api/wails';
+import { t } from '../i18n';
 defineOptions({ name: 'DownloadsView' });
 const store = useAppStore();
 const activeTab = ref('active');
@@ -26,27 +27,25 @@ async function pauseTask(id) {
         await store.refreshDownloads();
     }
     catch (e) {
-        ElMessage.error('暂停失败: ' + (e?.message || e));
+        ElMessage.error(e?.message || String(e));
     }
 }
 async function resumeTask(id) {
     try {
         await api.resumeDownload(id);
         await store.refreshDownloads();
-        ElMessage.success('已启动下载任务');
     }
     catch (e) {
-        ElMessage.error('恢复失败: ' + (e?.message || e));
+        ElMessage.error(e?.message || String(e));
     }
 }
 async function cancelTask(id) {
     try {
         await api.cancelDownload(id);
         await store.refreshDownloads();
-        ElMessage.success('已取消下载任务');
     }
     catch (e) {
-        ElMessage.error('取消失败: ' + (e?.message || e));
+        ElMessage.error(e?.message || String(e));
     }
 }
 async function openFolder(path) {
@@ -54,14 +53,14 @@ async function openFolder(path) {
         await api.openContainingFolder(path);
     }
     catch (e) {
-        ElMessage.error('定位失败: ' + (e?.message || e));
+        ElMessage.error(e?.message || String(e));
     }
 }
 function copy(text) {
     if (!text)
         return;
     navigator.clipboard.writeText(text);
-    ElMessage.success('已复制到剪贴板');
+    ElMessage.success(t('security.copied'));
 }
 function formatBytes(bytes) {
     if (!bytes || bytes <= 0)
@@ -73,12 +72,12 @@ function formatBytes(bytes) {
 }
 function getStatusLabel(status, retries) {
     switch (status) {
-        case 'downloading': return '正在下载';
-        case 'retrying': return retries ? `网络重试中 (${retries}/3)` : '重试中';
-        case 'paused': return '已暂停';
-        case 'completed': return '已完成';
-        case 'failed': return '下载失败';
-        default: return '等待中';
+        case 'downloading': return t('downloads.statusDownloading');
+        case 'retrying': return t('downloads.statusRetrying', { retries: retries || 1 });
+        case 'paused': return t('downloads.statusPaused');
+        case 'completed': return t('downloads.statusCompleted');
+        case 'failed': return t('downloads.statusFailed');
+        default: return t('downloads.statusPending');
     }
 }
 debugger; /* PartiallyEnd: #3632/scriptSetup.vue */
@@ -108,11 +107,11 @@ const __VLS_4 = {}.ElTabPane;
 /** @type {[typeof __VLS_components.ElTabPane, typeof __VLS_components.elTabPane, typeof __VLS_components.ElTabPane, typeof __VLS_components.elTabPane, ]} */ ;
 // @ts-ignore
 const __VLS_5 = __VLS_asFunctionalComponent(__VLS_4, new __VLS_4({
-    label: (`下载任务 (${__VLS_ctx.store.downloadTasks.length})`),
+    label: (__VLS_ctx.t('downloads.tabActive', { count: __VLS_ctx.store.downloadTasks.length })),
     name: "active",
 }));
 const __VLS_6 = __VLS_5({
-    label: (`下载任务 (${__VLS_ctx.store.downloadTasks.length})`),
+    label: (__VLS_ctx.t('downloads.tabActive', { count: __VLS_ctx.store.downloadTasks.length })),
     name: "active",
 }, ...__VLS_functionalComponentArgsRest(__VLS_5));
 __VLS_7.slots.default;
@@ -135,7 +134,7 @@ if (__VLS_ctx.store.downloadTasks.length > 0) {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
             ...{ class: "task-game" },
         });
-        (task.game_name || '游戏修改器');
+        (task.game_name || __VLS_ctx.t('search.drawerTitle'));
         __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
             ...{ class: "task-file" },
         });
@@ -182,6 +181,7 @@ if (__VLS_ctx.store.downloadTasks.length > 0) {
             const __VLS_21 = __VLS_asFunctionalComponent(__VLS_20, new __VLS_20({}));
             const __VLS_22 = __VLS_21({}, ...__VLS_functionalComponentArgsRest(__VLS_21));
             var __VLS_19;
+            (__VLS_ctx.t('downloads.pause'));
             var __VLS_11;
         }
         else if (task.status === 'paused') {
@@ -227,6 +227,7 @@ if (__VLS_ctx.store.downloadTasks.length > 0) {
             const __VLS_37 = __VLS_asFunctionalComponent(__VLS_36, new __VLS_36({}));
             const __VLS_38 = __VLS_37({}, ...__VLS_functionalComponentArgsRest(__VLS_37));
             var __VLS_35;
+            (__VLS_ctx.t('downloads.resume'));
             var __VLS_27;
         }
         else if (task.status === 'failed') {
@@ -274,6 +275,7 @@ if (__VLS_ctx.store.downloadTasks.length > 0) {
             const __VLS_53 = __VLS_asFunctionalComponent(__VLS_52, new __VLS_52({}));
             const __VLS_54 = __VLS_53({}, ...__VLS_functionalComponentArgsRest(__VLS_53));
             var __VLS_51;
+            (__VLS_ctx.t('downloads.retry'));
             var __VLS_43;
         }
         if (task.status === 'completed') {
@@ -317,6 +319,7 @@ if (__VLS_ctx.store.downloadTasks.length > 0) {
             const __VLS_69 = __VLS_asFunctionalComponent(__VLS_68, new __VLS_68({}));
             const __VLS_70 = __VLS_69({}, ...__VLS_functionalComponentArgsRest(__VLS_69));
             var __VLS_67;
+            (__VLS_ctx.t('downloads.locateFile'));
             var __VLS_59;
         }
         const __VLS_72 = {}.ElButton;
@@ -357,7 +360,7 @@ if (__VLS_ctx.store.downloadTasks.length > 0) {
         const __VLS_85 = __VLS_asFunctionalComponent(__VLS_84, new __VLS_84({}));
         const __VLS_86 = __VLS_85({}, ...__VLS_functionalComponentArgsRest(__VLS_85));
         var __VLS_83;
-        (task.status === 'completed' ? '清除' : '取消');
+        (task.status === 'completed' ? __VLS_ctx.t('downloads.clearRecord') : __VLS_ctx.t('downloads.cancel'));
         var __VLS_75;
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: "task-progress-wrap" },
@@ -403,7 +406,7 @@ if (__VLS_ctx.store.downloadTasks.length > 0) {
             ...{ class: "task-bytes" },
         });
         (__VLS_ctx.formatBytes(task.downloaded_bytes));
-        (task.total_bytes > 0 ? __VLS_ctx.formatBytes(task.total_bytes) : '未知大小');
+        (task.total_bytes > 0 ? __VLS_ctx.formatBytes(task.total_bytes) : __VLS_ctx.t('downloads.unknownSize'));
         if (task.status === 'downloading') {
             __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
                 ...{ class: "task-speed" },
@@ -415,6 +418,7 @@ if (__VLS_ctx.store.downloadTasks.length > 0) {
                 ...{ class: "task-status-text" },
                 ...{ class: (`status-${task.status}`) },
             });
+            (__VLS_ctx.t('downloads.statusLabel'));
             (__VLS_ctx.getStatusLabel(task.status, task.retries));
         }
     }
@@ -427,10 +431,10 @@ else {
     /** @type {[typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, ]} */ ;
     // @ts-ignore
     const __VLS_101 = __VLS_asFunctionalComponent(__VLS_100, new __VLS_100({
-        description: "当前暂无下载任务",
+        description: (__VLS_ctx.t('downloads.emptyTasks')),
     }));
     const __VLS_102 = __VLS_101({
-        description: "当前暂无下载任务",
+        description: (__VLS_ctx.t('downloads.emptyTasks')),
     }, ...__VLS_functionalComponentArgsRest(__VLS_101));
 }
 var __VLS_7;
@@ -438,11 +442,11 @@ const __VLS_104 = {}.ElTabPane;
 /** @type {[typeof __VLS_components.ElTabPane, typeof __VLS_components.elTabPane, typeof __VLS_components.ElTabPane, typeof __VLS_components.elTabPane, ]} */ ;
 // @ts-ignore
 const __VLS_105 = __VLS_asFunctionalComponent(__VLS_104, new __VLS_104({
-    label: "下载历史",
+    label: (__VLS_ctx.t('downloads.tabHistory')),
     name: "history",
 }));
 const __VLS_106 = __VLS_105({
-    label: "下载历史",
+    label: (__VLS_ctx.t('downloads.tabHistory')),
     name: "history",
 }, ...__VLS_functionalComponentArgsRest(__VLS_105));
 __VLS_107.slots.default;
@@ -467,12 +471,12 @@ const __VLS_112 = {}.ElTableColumn;
 // @ts-ignore
 const __VLS_113 = __VLS_asFunctionalComponent(__VLS_112, new __VLS_112({
     prop: "game_name",
-    label: "游戏名称",
+    label: (__VLS_ctx.t('downloads.historyGame')),
     width: "220",
 }));
 const __VLS_114 = __VLS_113({
     prop: "game_name",
-    label: "游戏名称",
+    label: (__VLS_ctx.t('downloads.historyGame')),
     width: "220",
 }, ...__VLS_functionalComponentArgsRest(__VLS_113));
 const __VLS_116 = {}.ElTableColumn;
@@ -480,21 +484,21 @@ const __VLS_116 = {}.ElTableColumn;
 // @ts-ignore
 const __VLS_117 = __VLS_asFunctionalComponent(__VLS_116, new __VLS_116({
     prop: "file_name",
-    label: "文件名称",
+    label: (__VLS_ctx.t('downloads.historyFile')),
 }));
 const __VLS_118 = __VLS_117({
     prop: "file_name",
-    label: "文件名称",
+    label: (__VLS_ctx.t('downloads.historyFile')),
 }, ...__VLS_functionalComponentArgsRest(__VLS_117));
 const __VLS_120 = {}.ElTableColumn;
 /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
 // @ts-ignore
 const __VLS_121 = __VLS_asFunctionalComponent(__VLS_120, new __VLS_120({
-    label: "大小",
+    label: (__VLS_ctx.t('downloads.historySize')),
     width: "110",
 }));
 const __VLS_122 = __VLS_121({
-    label: "大小",
+    label: (__VLS_ctx.t('downloads.historySize')),
     width: "110",
 }, ...__VLS_functionalComponentArgsRest(__VLS_121));
 __VLS_123.slots.default;
@@ -548,6 +552,7 @@ __VLS_127.slots.default;
         }
     };
     __VLS_131.slots.default;
+    (__VLS_ctx.t('security.copy'));
     var __VLS_131;
 }
 var __VLS_127;
@@ -555,11 +560,11 @@ const __VLS_136 = {}.ElTableColumn;
 /** @type {[typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, typeof __VLS_components.ElTableColumn, typeof __VLS_components.elTableColumn, ]} */ ;
 // @ts-ignore
 const __VLS_137 = __VLS_asFunctionalComponent(__VLS_136, new __VLS_136({
-    label: "操作",
+    label: (__VLS_ctx.t('downloads.historyAction')),
     width: "140",
 }));
 const __VLS_138 = __VLS_137({
-    label: "操作",
+    label: (__VLS_ctx.t('downloads.historyAction')),
     width: "140",
 }, ...__VLS_functionalComponentArgsRest(__VLS_137));
 __VLS_139.slots.default;
@@ -590,6 +595,7 @@ __VLS_139.slots.default;
         }
     };
     __VLS_143.slots.default;
+    (__VLS_ctx.t('downloads.locateFile'));
     var __VLS_143;
 }
 var __VLS_139;
@@ -626,6 +632,7 @@ const __VLS_self = (await import('vue')).defineComponent({
             RefreshRight: RefreshRight,
             FolderOpened: FolderOpened,
             WarningFilled: WarningFilled,
+            t: t,
             store: store,
             activeTab: activeTab,
             historyList: historyList,

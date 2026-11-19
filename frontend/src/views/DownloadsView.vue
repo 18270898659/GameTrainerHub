@@ -2,7 +2,7 @@
   <div class="downloads-view">
     <el-tabs v-model="activeTab" class="custom-tabs">
       <!-- 正在下载 / 活动任务 -->
-      <el-tab-pane :label="`下载任务 (${store.downloadTasks.length})`" name="active">
+      <el-tab-pane :label="t('downloads.tabActive', { count: store.downloadTasks.length })" name="active">
         <div v-if="store.downloadTasks.length > 0" class="task-list">
           <div
             v-for="task in store.downloadTasks"
@@ -12,7 +12,7 @@
           >
             <div class="task-header">
               <div class="task-names">
-                <span class="task-game">{{ task.game_name || '游戏修改器' }}</span>
+                <span class="task-game">{{ task.game_name || t('search.drawerTitle') }}</span>
                 <span class="task-file">{{ task.file_name }}</span>
               </div>
               <div class="task-actions">
@@ -22,7 +22,7 @@
                   plain
                   @click="pauseTask(task.id)"
                 >
-                  <el-icon><VideoPause /></el-icon> 暂停
+                  <el-icon><VideoPause /></el-icon> {{ t('downloads.pause') }}
                 </el-button>
                 <el-button
                   v-else-if="task.status === 'paused'"
@@ -31,7 +31,7 @@
                   plain
                   @click="resumeTask(task.id)"
                 >
-                  <el-icon><VideoPlay /></el-icon> 继续
+                  <el-icon><VideoPlay /></el-icon> {{ t('downloads.resume') }}
                 </el-button>
                 <el-button
                   v-else-if="task.status === 'failed'"
@@ -40,7 +40,7 @@
                   plain
                   @click="resumeTask(task.id)"
                 >
-                  <el-icon><RefreshRight /></el-icon> 重试下载
+                  <el-icon><RefreshRight /></el-icon> {{ t('downloads.retry') }}
                 </el-button>
                 <el-button
                   v-if="task.status === 'completed'"
@@ -49,7 +49,7 @@
                   plain
                   @click="openFolder(task.save_path)"
                 >
-                  <el-icon><FolderOpened /></el-icon> 定位文件
+                  <el-icon><FolderOpened /></el-icon> {{ t('downloads.locateFile') }}
                 </el-button>
                 <el-button
                   size="small"
@@ -57,7 +57,7 @@
                   plain
                   @click="cancelTask(task.id)"
                 >
-                  <el-icon><Delete /></el-icon> {{ task.status === 'completed' ? '清除' : '取消' }}
+                  <el-icon><Delete /></el-icon> {{ task.status === 'completed' ? t('downloads.clearRecord') : t('downloads.cancel') }}
                 </el-button>
               </div>
             </div>
@@ -79,29 +79,29 @@
 
             <div class="task-footer">
               <span class="task-bytes">
-                {{ formatBytes(task.downloaded_bytes) }} / {{ task.total_bytes > 0 ? formatBytes(task.total_bytes) : '未知大小' }}
+                {{ formatBytes(task.downloaded_bytes) }} / {{ task.total_bytes > 0 ? formatBytes(task.total_bytes) : t('downloads.unknownSize') }}
               </span>
               <span v-if="task.status === 'downloading'" class="task-speed">
                 {{ formatBytes(task.speed_bytes_per_sec) }}/s
               </span>
               <span v-else class="task-status-text" :class="`status-${task.status}`">
-                状态: {{ getStatusLabel(task.status, task.retries) }}
+                {{ t('downloads.statusLabel') }}{{ getStatusLabel(task.status, task.retries) }}
               </span>
             </div>
           </div>
         </div>
 
         <div v-else class="empty-wrap">
-          <el-empty description="当前暂无下载任务" />
+          <el-empty :description="t('downloads.emptyTasks')" />
         </div>
       </el-tab-pane>
 
       <!-- 下载历史 -->
-      <el-tab-pane label="下载历史" name="history">
+      <el-tab-pane :label="t('downloads.tabHistory')" name="history">
         <el-table :data="historyList" stripe style="width: 100%" class="custom-table">
-          <el-table-column prop="game_name" label="游戏名称" width="220" />
-          <el-table-column prop="file_name" label="文件名称" />
-          <el-table-column label="大小" width="110">
+          <el-table-column prop="game_name" :label="t('downloads.historyGame')" width="220" />
+          <el-table-column prop="file_name" :label="t('downloads.historyFile')" />
+          <el-table-column :label="t('downloads.historySize')" width="110">
             <template #default="{ row }">
               {{ formatBytes(row.file_size) }}
             </template>
@@ -109,13 +109,13 @@
           <el-table-column label="SHA-256" width="220">
             <template #default="{ row }">
               <span class="hash-short" :title="row.sha256">{{ (row.sha256 || '').substring(0, 16) }}...</span>
-              <el-button link type="primary" size="small" @click="copy(row.sha256)">复制</el-button>
+              <el-button link type="primary" size="small" @click="copy(row.sha256)">{{ t('security.copy') }}</el-button>
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="140">
+          <el-table-column :label="t('downloads.historyAction')" width="140">
             <template #default="{ row }">
               <el-button size="small" link type="primary" @click="openFolder(row.save_path)">
-                定位文件
+                {{ t('downloads.locateFile') }}
               </el-button>
             </template>
           </el-table-column>
@@ -131,6 +131,7 @@ import { VideoPause, VideoPlay, Delete, RefreshRight, FolderOpened, WarningFille
 import { ElMessage } from 'element-plus'
 import { useAppStore } from '../stores/appStore'
 import { api } from '../api/wails'
+import { t } from '../i18n'
 import type { DownloadHistory } from '../types'
 
 defineOptions({ name: 'DownloadsView' })
@@ -157,7 +158,7 @@ async function pauseTask(id: number) {
     await api.pauseDownload(id)
     await store.refreshDownloads()
   } catch (e: any) {
-    ElMessage.error('暂停失败: ' + (e?.message || e))
+    ElMessage.error(e?.message || String(e))
   }
 }
 
@@ -165,9 +166,8 @@ async function resumeTask(id: number) {
   try {
     await api.resumeDownload(id)
     await store.refreshDownloads()
-    ElMessage.success('已启动下载任务')
   } catch (e: any) {
-    ElMessage.error('恢复失败: ' + (e?.message || e))
+    ElMessage.error(e?.message || String(e))
   }
 }
 
@@ -175,9 +175,8 @@ async function cancelTask(id: number) {
   try {
     await api.cancelDownload(id)
     await store.refreshDownloads()
-    ElMessage.success('已取消下载任务')
   } catch (e: any) {
-    ElMessage.error('取消失败: ' + (e?.message || e))
+    ElMessage.error(e?.message || String(e))
   }
 }
 
@@ -185,14 +184,14 @@ async function openFolder(path: string) {
   try {
     await api.openContainingFolder(path)
   } catch (e: any) {
-    ElMessage.error('定位失败: ' + (e?.message || e))
+    ElMessage.error(e?.message || String(e))
   }
 }
 
 function copy(text: string) {
   if (!text) return
   navigator.clipboard.writeText(text)
-  ElMessage.success('已复制到剪贴板')
+  ElMessage.success(t('security.copied'))
 }
 
 function formatBytes(bytes: number): string {
@@ -205,12 +204,12 @@ function formatBytes(bytes: number): string {
 
 function getStatusLabel(status: string, retries?: number): string {
   switch (status) {
-    case 'downloading': return '正在下载'
-    case 'retrying': return retries ? `网络重试中 (${retries}/3)` : '重试中'
-    case 'paused': return '已暂停'
-    case 'completed': return '已完成'
-    case 'failed': return '下载失败'
-    default: return '等待中'
+    case 'downloading': return t('downloads.statusDownloading')
+    case 'retrying': return t('downloads.statusRetrying', { retries: retries || 1 })
+    case 'paused': return t('downloads.statusPaused')
+    case 'completed': return t('downloads.statusCompleted')
+    case 'failed': return t('downloads.statusFailed')
+    default: return t('downloads.statusPending')
   }
 }
 </script>

@@ -1,14 +1,14 @@
 <template>
   <el-dialog
     v-model="visible"
-    title="修改器安全启动确认"
+    :title="t('security.modalTitle')"
     width="580px"
     class="security-modal"
     :close-on-click-modal="false"
   >
     <div v-if="card" class="security-body">
       <el-alert
-        title="安全合规与透明运行提示"
+        :title="t('security.alertTitle')"
         type="warning"
         :closable="false"
         show-icon
@@ -16,46 +16,46 @@
       >
         <template #default>
           <div class="alert-desc">
-            游戏修改器通过读取与写入游戏内存（Memory Hooking）改变数值，极易被 Windows Defender 及第三方杀软误报为木马。本客户端绝不关闭杀毒软件、不私自加入白名单，启动前请仔细核对 SHA-256 哈希值。
+            {{ t('security.alertDesc') }}
           </div>
         </template>
       </el-alert>
 
       <div class="info-table">
         <div class="info-row">
-          <span class="label">目标游戏：</span>
+          <span class="label">{{ t('security.targetGame') }}</span>
           <span class="val font-bold">{{ card.game_name }}</span>
         </div>
         <div class="info-row">
-          <span class="label">文件名称：</span>
+          <span class="label">{{ t('security.fileName') }}</span>
           <span class="val">{{ card.file_name }}</span>
         </div>
         <div class="info-row">
-          <span class="label">文件大小：</span>
+          <span class="label">{{ t('security.fileSize') }}</span>
           <span class="val">{{ formatBytes(card.file_size) }}</span>
         </div>
         <div class="info-row">
-          <span class="label">资源来源：</span>
+          <span class="label">{{ t('security.resourceSource') }}</span>
           <el-tag size="small" type="success">{{ card.source_name }}</el-tag>
         </div>
         <div class="info-row hash-row">
-          <span class="label">SHA-256：</span>
+          <span class="label">{{ t('security.sha256') }}</span>
           <div class="val hash-text">
             <code>{{ card.sha256 }}</code>
-            <el-button link type="primary" size="small" @click="copyHash">复制</el-button>
+            <el-button link type="primary" size="small" @click="copyHash">{{ t('security.copy') }}</el-button>
           </div>
         </div>
         <div class="info-row">
-          <span class="label">本地路径：</span>
+          <span class="label">{{ t('security.localPath') }}</span>
           <span class="val path-text" :title="card.file_path">{{ card.file_path }}</span>
         </div>
       </div>
 
       <div class="admin-checkbox mt-3">
         <el-checkbox v-model="runAsAdmin">
-          以管理员身份运行
-          <span v-if="card.requires_admin" class="admin-hint-alert"> (检测到修改器包含特权权限清单，启动时将触发 Windows UAC 授权)</span>
-          <span v-else class="admin-hint"> (若游戏本身有反作弊保护或需特权权限)</span>
+          {{ t('security.runAsAdmin') }}
+          <span v-if="card.requires_admin" class="admin-hint-alert">{{ t('security.adminAlert') }}</span>
+          <span v-else class="admin-hint">{{ t('security.adminHint') }}</span>
         </el-checkbox>
       </div>
     </div>
@@ -63,11 +63,11 @@
     <template #footer>
       <div class="dialog-footer">
         <el-button @click="openFolder" plain>
-          打开所在文件夹
+          {{ t('security.openFolder') }}
         </el-button>
-        <el-button @click="visible = false">取消</el-button>
+        <el-button @click="visible = false">{{ t('library.cancel') }}</el-button>
         <el-button type="primary" :loading="launching" @click="confirmLaunch">
-          确认安全启动
+          {{ t('security.confirmLaunch') }}
         </el-button>
       </div>
     </template>
@@ -78,6 +78,7 @@
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api/wails'
+import { t } from '../i18n'
 import type { SecurityCardInfo } from '../types'
 
 const visible = ref(false)
@@ -102,7 +103,7 @@ function formatBytes(bytes: number): string {
 function copyHash() {
   if (card.value?.sha256) {
     navigator.clipboard.writeText(card.value.sha256)
-    ElMessage.success('SHA-256 哈希值已复制到剪贴板')
+    ElMessage.success(t('security.copied'))
   }
 }
 
@@ -111,7 +112,7 @@ async function openFolder() {
     try {
       await api.openContainingFolder(card.value.file_path)
     } catch (e: any) {
-      ElMessage.error('打开目录失败: ' + (e?.message || e))
+      ElMessage.error(e?.message || String(e))
     }
   }
 }
@@ -121,14 +122,14 @@ async function confirmLaunch() {
   launching.value = true
   try {
     await api.launchTrainer(card.value.trainer_id, runAsAdmin.value)
-    ElMessage.success('修改器已成功拉起运行')
+    ElMessage.success(t('security.launchSuccess'))
     visible.value = false
   } catch (e: any) {
     const msg = e?.message || e || ''
     if (msg.includes('取消') || msg.includes('cancel')) {
-      ElMessage.warning('已取消启动: ' + msg)
+      ElMessage.warning(msg)
     } else {
-      ElMessage.error('启动失败: ' + msg)
+      ElMessage.error(t('security.launchFailed') + msg)
     }
   } finally {
     launching.value = false
@@ -206,4 +207,3 @@ defineExpose({ open })
   gap: 10px;
 }
 </style>
-

@@ -169,13 +169,25 @@ export const api = {
             language: 'zh-CN',
             log_level: 'info',
             safe_launch_prompt: true,
-            close_to_tray: false
+            close_to_tray: false,
+            remember_window_size: true,
+            window_width: 1280,
+            window_height: 820,
+            remember_window_position: false,
+            window_x: 0,
+            window_y: 0
         };
     },
     async saveConfig(cfg) {
         if (isWails()) {
             return window.go.app.App.SaveConfig(cfg);
         }
+    },
+    async selectDownloadDirectory() {
+        if (isWails()) {
+            return window.go.app.App.SelectDownloadDirectory();
+        }
+        return '';
     },
     onDownloadProgress(callback) {
         if (typeof window !== 'undefined' && window.runtime?.EventsOn) {

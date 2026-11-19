@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { api } from '../api/wails'
+import { t } from '../i18n'
 import type { SearchResult, TrainerVersion } from '../types'
 
 const HISTORY_STORAGE_KEY = 'gth_search_history'
@@ -126,9 +127,9 @@ export const useSearchStore = defineStore('search', () => {
     downloadingVerID.value = v.id
     try {
       await api.startDownload(v.id)
-      ElMessage.success('已添加到下载中心')
+      ElMessage.success(t('search.downloadStarted'))
     } catch (e: any) {
-      ElMessage.error('创建下载失败: ' + (e?.message || e))
+      ElMessage.error(e?.message || String(e))
     } finally {
       downloadingVerID.value = null
     }

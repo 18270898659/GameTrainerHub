@@ -4,6 +4,7 @@ import { Monitor, Plus, VideoPlay, Delete } from '@element-plus/icons-vue';
 import { ElMessage, ElMessageBox } from 'element-plus';
 import { useAppStore } from '../stores/appStore';
 import { api } from '../api/wails';
+import { t } from '../i18n';
 import SecurityModal from '../components/SecurityModal.vue';
 defineOptions({ name: 'LibraryView' });
 const store = useAppStore();
@@ -19,7 +20,7 @@ async function openLaunchModal(id) {
         securityModalRef.value?.open(card);
     }
     catch (e) {
-        ElMessage.error('读取启动信息失败: ' + (e.message || e));
+        ElMessage.error(e?.message || String(e));
     }
 }
 async function openFolder(path) {
@@ -27,18 +28,18 @@ async function openFolder(path) {
         await api.openContainingFolder(path);
     }
     catch (e) {
-        ElMessage.error('打开目录失败: ' + (e.message || e));
+        ElMessage.error(e?.message || String(e));
     }
 }
 async function scanSteam() {
     scanningSteam.value = true;
     try {
         const count = await api.scanSteamGames();
-        ElMessage.success(`Steam 库扫描完成，成功匹配 ${count} 款本地安装游戏`);
+        ElMessage.success(t('library.scanSuccess', { count }));
         await store.refreshLocalTrainers();
     }
     catch (e) {
-        ElMessage.error('扫描失败: ' + (e.message || e));
+        ElMessage.error(t('library.scanFailed') + (e.message || e));
     }
     finally {
         scanningSteam.value = false;
@@ -46,15 +47,15 @@ async function scanSteam() {
 }
 async function promptImport() {
     try {
-        const { value: filePath } = await ElMessageBox.prompt('请输入本地修改器可执行程序 (.exe) 的完整绝对路径：', '导入外部修改器', {
-            confirmButtonText: '导入',
-            cancelButtonText: '取消',
+        const { value: filePath } = await ElMessageBox.prompt(t('library.importExe'), t('library.importExe'), {
+            confirmButtonText: t('library.importExe'),
+            cancelButtonText: t('library.cancel'),
             inputPattern: /^.+\.exe$/i,
-            inputErrorMessage: '文件路径必须以 .exe 结尾'
+            inputErrorMessage: '.exe'
         });
         if (filePath) {
             await api.importCustomTrainer(1, filePath.trim());
-            ElMessage.success('导入成功');
+            ElMessage.success(t('settings.savedSuccess'));
             await store.refreshLocalTrainers();
         }
     }
@@ -65,11 +66,10 @@ async function promptImport() {
 async function deleteTrainer(id) {
     try {
         await api.deleteLocalTrainer(id, false);
-        ElMessage.success('已删除记录');
         await store.refreshLocalTrainers();
     }
     catch (e) {
-        ElMessage.error('删除失败: ' + (e.message || e));
+        ElMessage.error(e?.message || String(e));
     }
 }
 function getFileName(path) {
@@ -107,8 +107,10 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
     ...{ class: "lib-count" },
 });
+(__VLS_ctx.t('library.managedCount'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.strong, __VLS_intrinsicElements.strong)({});
 (__VLS_ctx.store.localTrainers.length);
+(__VLS_ctx.t('library.managedUnit'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "right-buttons" },
 });
@@ -144,6 +146,7 @@ const __VLS_12 = {}.Monitor;
 const __VLS_13 = __VLS_asFunctionalComponent(__VLS_12, new __VLS_12({}));
 const __VLS_14 = __VLS_13({}, ...__VLS_functionalComponentArgsRest(__VLS_13));
 var __VLS_11;
+(__VLS_ctx.t('library.scanSteam'));
 var __VLS_3;
 const __VLS_16 = {}.ElButton;
 /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
@@ -177,6 +180,7 @@ const __VLS_28 = {}.Plus;
 const __VLS_29 = __VLS_asFunctionalComponent(__VLS_28, new __VLS_28({}));
 const __VLS_30 = __VLS_29({}, ...__VLS_functionalComponentArgsRest(__VLS_29));
 var __VLS_27;
+(__VLS_ctx.t('library.importExe'));
 var __VLS_19;
 if (__VLS_ctx.store.localTrainers.length > 0) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -215,7 +219,7 @@ if (__VLS_ctx.store.localTrainers.length > 0) {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: "game-name" },
         });
-        (item.game?.name_cn || item.game?.name_en || '未关联游戏');
+        (item.game?.name_cn || item.game?.name_en || __VLS_ctx.t('library.unassociatedGame'));
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: "file-name" },
             title: (item.local_trainer.file_path),
@@ -225,8 +229,10 @@ if (__VLS_ctx.store.localTrainers.length > 0) {
             ...{ class: "stats-row" },
         });
         __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+        (__VLS_ctx.t('library.runCount'));
         (item.local_trainer.run_count);
         __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+        (__VLS_ctx.t('library.fileSize'));
         (__VLS_ctx.formatBytes(item.local_trainer.file_size));
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: "card-btns" },
@@ -267,6 +273,7 @@ if (__VLS_ctx.store.localTrainers.length > 0) {
         const __VLS_49 = __VLS_asFunctionalComponent(__VLS_48, new __VLS_48({}));
         const __VLS_50 = __VLS_49({}, ...__VLS_functionalComponentArgsRest(__VLS_49));
         var __VLS_47;
+        (__VLS_ctx.t('library.launchBtn'));
         var __VLS_39;
         const __VLS_52 = {}.ElButton;
         /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
@@ -292,21 +299,22 @@ if (__VLS_ctx.store.localTrainers.length > 0) {
             }
         };
         __VLS_55.slots.default;
+        (__VLS_ctx.t('library.folderBtn'));
         var __VLS_55;
         const __VLS_60 = {}.ElPopconfirm;
         /** @type {[typeof __VLS_components.ElPopconfirm, typeof __VLS_components.elPopconfirm, typeof __VLS_components.ElPopconfirm, typeof __VLS_components.elPopconfirm, ]} */ ;
         // @ts-ignore
         const __VLS_61 = __VLS_asFunctionalComponent(__VLS_60, new __VLS_60({
             ...{ 'onConfirm': {} },
-            title: "确定要从本地库中删除此修改器记录吗？",
-            confirmButtonText: "删除",
-            cancelButtonText: "取消",
+            title: (__VLS_ctx.t('library.deleteConfirm')),
+            confirmButtonText: (__VLS_ctx.t('library.delete')),
+            cancelButtonText: (__VLS_ctx.t('library.cancel')),
         }));
         const __VLS_62 = __VLS_61({
             ...{ 'onConfirm': {} },
-            title: "确定要从本地库中删除此修改器记录吗？",
-            confirmButtonText: "删除",
-            cancelButtonText: "取消",
+            title: (__VLS_ctx.t('library.deleteConfirm')),
+            confirmButtonText: (__VLS_ctx.t('library.delete')),
+            cancelButtonText: (__VLS_ctx.t('library.cancel')),
         }, ...__VLS_functionalComponentArgsRest(__VLS_61));
         let __VLS_64;
         let __VLS_65;
@@ -360,10 +368,10 @@ else {
     /** @type {[typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, ]} */ ;
     // @ts-ignore
     const __VLS_81 = __VLS_asFunctionalComponent(__VLS_80, new __VLS_80({
-        description: "本地库尚无修改器",
+        description: (__VLS_ctx.t('library.emptyLibrary')),
     }));
     const __VLS_82 = __VLS_81({
-        description: "本地库尚无修改器",
+        description: (__VLS_ctx.t('library.emptyLibrary')),
     }, ...__VLS_functionalComponentArgsRest(__VLS_81));
     __VLS_83.slots.default;
     {
@@ -371,6 +379,7 @@ else {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
             ...{ class: "empty-tip" },
         });
+        (__VLS_ctx.t('library.emptyLibraryTip'));
     }
     var __VLS_83;
 }
@@ -411,6 +420,7 @@ const __VLS_self = (await import('vue')).defineComponent({
             Plus: Plus,
             VideoPlay: VideoPlay,
             Delete: Delete,
+            t: t,
             SecurityModal: SecurityModal,
             store: store,
             scanningSteam: scanningSteam,

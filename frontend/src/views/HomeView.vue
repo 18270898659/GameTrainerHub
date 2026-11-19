@@ -3,14 +3,14 @@
     <!-- Hero Banner -->
     <div class="hero-banner">
       <div class="hero-content">
-        <h1 class="hero-title">Game Trainer Hub</h1>
-        <p class="hero-subtitle">PC 游戏修改器聚合管理客户端 · 官方资源直连索引 · 安全受控运行</p>
+        <h1 class="hero-title">{{ t('home.heroTitle') }}</h1>
+        <p class="hero-subtitle">{{ t('home.heroSubtitle') }}</p>
         
         <div class="hero-search-box">
           <el-input
             v-model="heroQuery"
             size="large"
-            placeholder="输入游戏中文名、英文名、拼音缩写 (例如: 赛博朋克2077 / sbpk / 老头环)..."
+            :placeholder="t('home.searchPlaceholder')"
             clearable
             @keyup.enter="handleHeroSearch"
           >
@@ -18,7 +18,7 @@
               <el-icon><Search /></el-icon>
             </template>
             <template #append>
-              <el-button type="primary" @click="handleHeroSearch">立即搜索</el-button>
+              <el-button type="primary" @click="handleHeroSearch">{{ t('home.searchBtn') }}</el-button>
             </template>
           </el-input>
         </div>
@@ -29,19 +29,19 @@
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-val">767+</div>
-        <div class="stat-label">收录修改器游戏</div>
+        <div class="stat-label">{{ t('home.statsIndexedGames') }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-val">{{ store.localTrainers.length }}</div>
-        <div class="stat-label">本地已就绪修改器</div>
+        <div class="stat-label">{{ t('home.statsReadyTrainers') }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-val">{{ store.activeDownloadsCount }}</div>
-        <div class="stat-label">当前下载任务</div>
+        <div class="stat-label">{{ t('home.statsActiveDownloads') }}</div>
       </div>
       <div class="stat-card">
         <div class="stat-val">FLiNG</div>
-        <div class="stat-label">首期官方同步源</div>
+        <div class="stat-label">{{ t('home.statsOfficialSource') }}</div>
       </div>
     </div>
 
@@ -49,10 +49,10 @@
     <div class="section-header">
       <div class="section-title">
         <el-icon><Clock /></el-icon>
-        <span>原网站最近更新与发布</span>
+        <span>{{ t('home.latestTitle') }}</span>
       </div>
       <el-button size="small" :loading="store.isSyncing" @click="triggerSync" plain>
-        <el-icon><Refresh /></el-icon> 同步最新资源
+        <el-icon><Refresh /></el-icon> {{ t('home.syncBtn') }}
       </el-button>
     </div>
 
@@ -72,8 +72,8 @@
           <div class="game-name-en">{{ item.game_name_en }}</div>
           <div class="card-footer">
             <span class="update-time">{{ formatDate(item.updated_at) }}</span>
-            <el-tag v-if="item.is_downloaded" size="small" type="success">已下载</el-tag>
-            <el-tag v-else size="small" type="info">在线获取</el-tag>
+            <el-tag v-if="item.is_downloaded" size="small" type="success">{{ t('home.tagDownloaded') }}</el-tag>
+            <el-tag v-else size="small" type="info">{{ t('home.tagOnline') }}</el-tag>
           </div>
         </div>
       </div>
@@ -88,6 +88,7 @@ import { Search, Clock, Refresh } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAppStore } from '../stores/appStore'
 import { api } from '../api/wails'
+import { t } from '../i18n'
 import type { SearchResult } from '../types'
 
 const router = useRouter()
@@ -131,11 +132,11 @@ function formatDate(dateStr: string): string {
 async function triggerSync() {
   store.isSyncing = true
   try {
-    await api.triggerSync()
-    ElMessage.success('已从原网站同步最新修改器')
+    const rec = await api.triggerSync()
+    ElMessage.success(t('home.syncSuccess', { added: rec?.added_count || 0, updated: rec?.updated_count || 0 }))
     await store.refreshLatest()
   } catch (e: any) {
-    ElMessage.error('同步失败: ' + (e.message || e))
+    ElMessage.error(t('home.syncFailed') + (e.message || e))
   } finally {
     store.isSyncing = false
   }

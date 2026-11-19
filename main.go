@@ -11,6 +11,7 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/windows"
+	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 //go:embed all:frontend/dist
@@ -35,6 +36,16 @@ func main() {
 		BackgroundColour: &options.RGBA{R: 18, G: 20, B: 24, A: 255},
 		OnStartup:        appInstance.Startup,
 		OnShutdown:       appInstance.Shutdown,
+		OnBeforeClose:    appInstance.OnBeforeClose,
+		SingleInstanceLock: &options.SingleInstanceLock{
+			UniqueId: "GameTrainerHub-Instance-Lock",
+			OnSecondInstanceLaunch: func(secondInstanceData options.SecondInstanceData) {
+				if appInstance.GetContext() != nil {
+					runtime.WindowShow(appInstance.GetContext())
+					runtime.WindowUnminimise(appInstance.GetContext())
+				}
+			},
+		},
 		Bind: []any{
 			appInstance,
 		},

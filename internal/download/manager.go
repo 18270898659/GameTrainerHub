@@ -29,6 +29,9 @@ type DownloadManager struct {
 	taskQueue   chan int64
 	listeners   []ProgressCallback
 	mu          sync.RWMutex
+	condMu      sync.Mutex
+	cond        *sync.Cond
+	activeCount int
 	ctx         context.Context
 	cancel      context.CancelFunc
 }
@@ -71,11 +74,10 @@ func NewDownloadManager(
 		ctx:           ctx,
 		cancel:        cancel,
 	}
+	dm.cond = sync.NewCond(&dm.condMu)
 
-	// 启动 Worker Pool
-	for i := 0; i < dm.maxConcurrent; i++ {
-		go dm.workerLoop(i)
-	}
+	// 启动统一任务分发调度循环 (支持动态并发调整)
+	go dm.dispatchLoop()
 
 	return dm
 }
@@ -213,15 +215,63 @@ func (m *DownloadManager) CancelTask(taskID int64) error {
 	return m.dlRepo.DeleteTask(ctx, taskID)
 }
 
-func (m *DownloadManager) workerLoop(workerID int) {
+// dispatchLoop 统一任务分发调度循环
+func (m *DownloadManager) dispatchLoop() {
 	for {
 		select {
 		case <-m.ctx.Done():
 			return
 		case taskID := <-m.taskQueue:
-			m.processTask(taskID)
+			m.condMu.Lock()
+			for m.activeCount >= m.maxConcurrent && m.ctx.Err() == nil {
+				m.cond.Wait()
+			}
+			if m.ctx.Err() != nil {
+				m.condMu.Unlock()
+				return
+			}
+			m.activeCount++
+			m.condMu.Unlock()
+
+			go func(tID int64) {
+				defer func() {
+					m.condMu.Lock()
+					m.activeCount--
+					m.cond.Signal()
+					m.condMu.Unlock()
+				}()
+				m.processTask(tID)
+			}(taskID)
 		}
 	}
+}
+
+// SetMaxConcurrent 动态调整最大并发下载任务数并广播唤醒等待中的任务
+func (m *DownloadManager) SetMaxConcurrent(n int) {
+	if n < 1 {
+		n = 1
+	}
+	if n > 10 {
+		n = 10
+	}
+	m.condMu.Lock()
+	m.maxConcurrent = n
+	m.cond.Broadcast()
+	m.condMu.Unlock()
+	logger.Info("Dynamically updated max concurrent downloads", "maxConcurrent", n)
+}
+
+// HasActiveTasks 检查当前是否存在下载中或调度中的活跃任务
+func (m *DownloadManager) HasActiveTasks() bool {
+	m.mu.RLock()
+	hasActiveMap := len(m.activeTasks) > 0
+	m.mu.RUnlock()
+
+	m.condMu.Lock()
+	hasCount := m.activeCount > 0
+	m.condMu.Unlock()
+
+	return hasActiveMap || hasCount
 }
 
 func (m *DownloadManager) processTask(taskID int64) {
@@ -372,5 +422,8 @@ func (m *DownloadManager) processTask(taskID int64) {
 // Close 关闭下载管理器
 func (m *DownloadManager) Close() {
 	m.cancel()
+	m.condMu.Lock()
+	m.cond.Broadcast()
+	m.condMu.Unlock()
 }
 

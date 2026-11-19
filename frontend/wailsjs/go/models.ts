@@ -14,6 +14,12 @@ export namespace config {
 	    log_level: string;
 	    safe_launch_prompt: boolean;
 	    close_to_tray: boolean;
+	    remember_window_size: boolean;
+	    window_width: number;
+	    window_height: number;
+	    remember_window_position: boolean;
+	    window_x: number;
+	    window_y: number;
 	
 	    static createFrom(source: any = {}) {
 	        return new AppConfig(source);
@@ -34,6 +40,12 @@ export namespace config {
 	        this.log_level = source["log_level"];
 	        this.safe_launch_prompt = source["safe_launch_prompt"];
 	        this.close_to_tray = source["close_to_tray"];
+	        this.remember_window_size = source["remember_window_size"];
+	        this.window_width = source["window_width"];
+	        this.window_height = source["window_height"];
+	        this.remember_window_position = source["remember_window_position"];
+	        this.window_x = source["window_x"];
+	        this.window_y = source["window_y"];
 	    }
 	}
 

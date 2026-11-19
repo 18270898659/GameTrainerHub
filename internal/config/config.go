@@ -18,12 +18,18 @@ type AppConfig struct {
 	AutoSyncEnabled        bool   `json:"auto_sync_enabled"`
 	ProxyURL               string `json:"proxy_url"`
 	Theme                  string `json:"theme"`                   // "dark", "light", "system"
-	Language               string `json:"language"`                // "zh-CN", "en-US"
+	Language               string `json:"language"`                // "zh-CN", "zh-TW", "en-US"
 	LogLevel               string `json:"log_level"`               // "debug", "info", "warn", "error"
 	SafeLaunchPrompt       bool   `json:"safe_launch_prompt"`      // 启动前必须安全风险弹窗确认
 	CloseToTray            bool   `json:"close_to_tray"`           // 关闭窗口时最小化到系统托盘
+	RememberWindowSize     bool   `json:"remember_window_size"`    // 记住窗口大小
+	WindowWidth            int    `json:"window_width"`            // 记录的窗口宽度
+	WindowHeight           int    `json:"window_height"`           // 记录的窗口高度
+	RememberWindowPosition bool   `json:"remember_window_position"`// 记住窗口位置
+	WindowX                int    `json:"window_x"`                // 记录的窗口X坐标
+	WindowY                int    `json:"window_y"`                // 记录的窗口Y坐标
 
-	configFilePath string      `json:"-"`
+	configFilePath string       `json:"-"`
 	mu             sync.RWMutex `json:"-"`
 }
 
@@ -57,6 +63,12 @@ func DefaultConfig() *AppConfig {
 		LogLevel:               "info",
 		SafeLaunchPrompt:       true,
 		CloseToTray:            false,
+		RememberWindowSize:     true,
+		WindowWidth:            1280,
+		WindowHeight:           820,
+		RememberWindowPosition: false,
+		WindowX:                0,
+		WindowY:                0,
 		configFilePath:         filepath.Join(baseDir, "config.json"),
 	}
 }
@@ -114,6 +126,15 @@ func LoadConfig(customPath string) (*AppConfig, error) {
 	}
 	if cfg.MaxConcurrentDownloads <= 0 {
 		cfg.MaxConcurrentDownloads = 3
+	}
+	if cfg.WindowWidth <= 0 {
+		cfg.WindowWidth = 1280
+	}
+	if cfg.WindowHeight <= 0 {
+		cfg.WindowHeight = 820
+	}
+	if cfg.Language == "" {
+		cfg.Language = "zh-CN"
 	}
 
 	return cfg, nil

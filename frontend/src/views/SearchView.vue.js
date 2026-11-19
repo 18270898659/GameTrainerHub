@@ -3,6 +3,7 @@ import { onMounted, watch } from 'vue';
 import { useRoute } from 'vue-router';
 import { Search, Download } from '@element-plus/icons-vue';
 import { useSearchStore } from '../stores/searchStore';
+import { t } from '../i18n';
 defineOptions({ name: 'SearchView' });
 const route = useRoute();
 const store = useSearchStore();
@@ -51,14 +52,14 @@ const __VLS_1 = __VLS_asFunctionalComponent(__VLS_0, new __VLS_0({
     ...{ 'onKeyup': {} },
     modelValue: (__VLS_ctx.store.query),
     size: "large",
-    placeholder: "中英双向搜索：黑神话：悟空 / Black Myth / 赛博朋克2077 / Cyberpunk / sbpk / 老头环...",
+    placeholder: (__VLS_ctx.t('search.placeholder')),
     clearable: true,
 }));
 const __VLS_2 = __VLS_1({
     ...{ 'onKeyup': {} },
     modelValue: (__VLS_ctx.store.query),
     size: "large",
-    placeholder: "中英双向搜索：黑神话：悟空 / Black Myth / 赛博朋克2077 / Cyberpunk / sbpk / 老头环...",
+    placeholder: (__VLS_ctx.t('search.placeholder')),
     clearable: true,
 }, ...__VLS_functionalComponentArgsRest(__VLS_1));
 let __VLS_4;
@@ -105,6 +106,7 @@ __VLS_3.slots.default;
         onClick: (__VLS_ctx.handleSearch)
     };
     __VLS_19.slots.default;
+    (__VLS_ctx.t('search.searchBtn'));
     var __VLS_19;
 }
 var __VLS_3;
@@ -115,6 +117,7 @@ if (__VLS_ctx.store.searchHistory.length > 0) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
         ...{ class: "history-label" },
     });
+    (__VLS_ctx.t('search.recentSearch'));
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "history-tags" },
     });
@@ -183,6 +186,7 @@ if (__VLS_ctx.store.searchHistory.length > 0) {
         onClick: (__VLS_ctx.store.clearSearchHistory)
     };
     __VLS_36.slots.default;
+    (__VLS_ctx.t('search.clear'));
     var __VLS_36;
 }
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -206,6 +210,7 @@ const __VLS_48 = {
     onChange: (__VLS_ctx.handleSearch)
 };
 __VLS_44.slots.default;
+(__VLS_ctx.t('search.localOnly'));
 var __VLS_44;
 const __VLS_49 = {}.ElRadioGroup;
 /** @type {[typeof __VLS_components.ElRadioGroup, typeof __VLS_components.elRadioGroup, typeof __VLS_components.ElRadioGroup, typeof __VLS_components.elRadioGroup, ]} */ ;
@@ -237,6 +242,7 @@ const __VLS_59 = __VLS_58({
     value: "all",
 }, ...__VLS_functionalComponentArgsRest(__VLS_58));
 __VLS_60.slots.default;
+(__VLS_ctx.t('search.allSources'));
 var __VLS_60;
 const __VLS_61 = {}.ElRadioButton;
 /** @type {[typeof __VLS_components.ElRadioButton, typeof __VLS_components.elRadioButton, typeof __VLS_components.ElRadioButton, typeof __VLS_components.elRadioButton, ]} */ ;
@@ -248,6 +254,7 @@ const __VLS_63 = __VLS_62({
     value: "fling",
 }, ...__VLS_functionalComponentArgsRest(__VLS_62));
 __VLS_64.slots.default;
+(__VLS_ctx.t('search.flingSource'));
 var __VLS_64;
 var __VLS_52;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -290,6 +297,7 @@ if (__VLS_ctx.store.results.length > 0) {
                 ...{ class: "dl-tag" },
             }, ...__VLS_functionalComponentArgsRest(__VLS_66));
             __VLS_68.slots.default;
+            (__VLS_ctx.t('search.downloaded'));
             var __VLS_68;
         }
         else if (item.is_online_only) {
@@ -307,6 +315,7 @@ if (__VLS_ctx.store.results.length > 0) {
                 ...{ class: "dl-tag" },
             }, ...__VLS_functionalComponentArgsRest(__VLS_70));
             __VLS_72.slots.default;
+            (__VLS_ctx.t('home.tagOnline'));
             var __VLS_72;
         }
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -330,7 +339,7 @@ if (__VLS_ctx.store.results.length > 0) {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
             ...{ class: "score-tag" },
         });
-        (Math.min(100, Math.round(item.score)));
+        (__VLS_ctx.t('search.matchScore', { score: Math.min(100, Math.round(item.score)) }));
     }
 }
 else if (!__VLS_ctx.store.searching && __VLS_ctx.store.hasSearched) {
@@ -341,10 +350,10 @@ else if (!__VLS_ctx.store.searching && __VLS_ctx.store.hasSearched) {
     /** @type {[typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, typeof __VLS_components.ElEmpty, typeof __VLS_components.elEmpty, ]} */ ;
     // @ts-ignore
     const __VLS_74 = __VLS_asFunctionalComponent(__VLS_73, new __VLS_73({
-        description: "未检索到相关修改器资源",
+        description: (__VLS_ctx.t('search.emptyTitle')),
     }));
     const __VLS_75 = __VLS_74({
-        description: "未检索到相关修改器资源",
+        description: (__VLS_ctx.t('search.emptyTitle')),
     }, ...__VLS_functionalComponentArgsRest(__VLS_74));
     __VLS_76.slots.default;
     {
@@ -352,6 +361,7 @@ else if (!__VLS_ctx.store.searching && __VLS_ctx.store.hasSearched) {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
             ...{ class: "empty-tip" },
         });
+        (__VLS_ctx.t('search.emptyTip'));
     }
     var __VLS_76;
 }
@@ -360,13 +370,13 @@ const __VLS_77 = {}.ElDrawer;
 // @ts-ignore
 const __VLS_78 = __VLS_asFunctionalComponent(__VLS_77, new __VLS_77({
     modelValue: (__VLS_ctx.store.drawerVisible),
-    title: "修改器详情与版本列表",
+    title: (__VLS_ctx.t('search.drawerTitle')),
     size: "480px",
     ...{ class: "detail-drawer" },
 }));
 const __VLS_79 = __VLS_78({
     modelValue: (__VLS_ctx.store.drawerVisible),
-    title: "修改器详情与版本列表",
+    title: (__VLS_ctx.t('search.drawerTitle')),
     size: "480px",
     ...{ class: "detail-drawer" },
 }, ...__VLS_functionalComponentArgsRest(__VLS_78));
@@ -398,6 +408,7 @@ if (__VLS_ctx.store.selectedGame) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "section-sub" },
     });
+    (__VLS_ctx.t('search.versionList'));
     if (__VLS_ctx.store.detailVersions.length > 0) {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: "versions-list" },
@@ -434,6 +445,7 @@ if (__VLS_ctx.store.selectedGame) {
                     disabled: true,
                 }, ...__VLS_functionalComponentArgsRest(__VLS_86));
                 __VLS_88.slots.default;
+                (__VLS_ctx.t('search.downloaded'));
                 var __VLS_88;
             }
             else {
@@ -479,6 +491,7 @@ if (__VLS_ctx.store.selectedGame) {
                 const __VLS_102 = __VLS_asFunctionalComponent(__VLS_101, new __VLS_101({}));
                 const __VLS_103 = __VLS_102({}, ...__VLS_functionalComponentArgsRest(__VLS_102));
                 var __VLS_100;
+                (__VLS_ctx.t('search.downloadBtn'));
                 var __VLS_92;
             }
         }
@@ -487,6 +500,7 @@ if (__VLS_ctx.store.selectedGame) {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: "text-gray text-sm" },
         });
+        (__VLS_ctx.t('search.noFeatures'));
     }
     if (__VLS_ctx.store.detailVersions.length > 0 && __VLS_ctx.store.detailVersions[0]?.features_text) {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -495,6 +509,7 @@ if (__VLS_ctx.store.selectedGame) {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: "section-sub" },
         });
+        (__VLS_ctx.t('search.featuresList'));
         __VLS_asFunctionalElement(__VLS_intrinsicElements.pre, __VLS_intrinsicElements.pre)({
             ...{ class: "cheats-box" },
         });
@@ -547,6 +562,7 @@ const __VLS_self = (await import('vue')).defineComponent({
         return {
             Search: Search,
             Download: Download,
+            t: t,
             store: store,
             defaultThumb: defaultThumb,
             handleSearch: handleSearch,

@@ -5,6 +5,7 @@ import { Search, Clock, Refresh } from '@element-plus/icons-vue';
 import { ElMessage } from 'element-plus';
 import { useAppStore } from '../stores/appStore';
 import { api } from '../api/wails';
+import { t } from '../i18n';
 const router = useRouter();
 const store = useAppStore();
 const heroQuery = ref('');
@@ -44,12 +45,12 @@ function formatDate(dateStr) {
 async function triggerSync() {
     store.isSyncing = true;
     try {
-        await api.triggerSync();
-        ElMessage.success('已从原网站同步最新修改器');
+        const rec = await api.triggerSync();
+        ElMessage.success(t('home.syncSuccess', { added: rec?.added_count || 0, updated: rec?.updated_count || 0 }));
         await store.refreshLatest();
     }
     catch (e) {
-        ElMessage.error('同步失败: ' + (e.message || e));
+        ElMessage.error(t('home.syncFailed') + (e.message || e));
     }
     finally {
         store.isSyncing = false;
@@ -75,9 +76,11 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
 __VLS_asFunctionalElement(__VLS_intrinsicElements.h1, __VLS_intrinsicElements.h1)({
     ...{ class: "hero-title" },
 });
+(__VLS_ctx.t('home.heroTitle'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.p, __VLS_intrinsicElements.p)({
     ...{ class: "hero-subtitle" },
 });
+(__VLS_ctx.t('home.heroSubtitle'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "hero-search-box" },
 });
@@ -88,14 +91,14 @@ const __VLS_1 = __VLS_asFunctionalComponent(__VLS_0, new __VLS_0({
     ...{ 'onKeyup': {} },
     modelValue: (__VLS_ctx.heroQuery),
     size: "large",
-    placeholder: "输入游戏中文名、英文名、拼音缩写 (例如: 赛博朋克2077 / sbpk / 老头环)...",
+    placeholder: (__VLS_ctx.t('home.searchPlaceholder')),
     clearable: true,
 }));
 const __VLS_2 = __VLS_1({
     ...{ 'onKeyup': {} },
     modelValue: (__VLS_ctx.heroQuery),
     size: "large",
-    placeholder: "输入游戏中文名、英文名、拼音缩写 (例如: 赛博朋克2077 / sbpk / 老头环)...",
+    placeholder: (__VLS_ctx.t('home.searchPlaceholder')),
     clearable: true,
 }, ...__VLS_functionalComponentArgsRest(__VLS_1));
 let __VLS_4;
@@ -140,6 +143,7 @@ __VLS_3.slots.default;
         onClick: (__VLS_ctx.handleHeroSearch)
     };
     __VLS_19.slots.default;
+    (__VLS_ctx.t('home.searchBtn'));
     var __VLS_19;
 }
 var __VLS_3;
@@ -155,6 +159,7 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "stat-label" },
 });
+(__VLS_ctx.t('home.statsIndexedGames'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "stat-card" },
 });
@@ -165,6 +170,7 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "stat-label" },
 });
+(__VLS_ctx.t('home.statsReadyTrainers'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "stat-card" },
 });
@@ -175,6 +181,7 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "stat-label" },
 });
+(__VLS_ctx.t('home.statsActiveDownloads'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "stat-card" },
 });
@@ -184,6 +191,7 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "stat-label" },
 });
+(__VLS_ctx.t('home.statsOfficialSource'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "section-header" },
 });
@@ -203,6 +211,7 @@ const __VLS_29 = __VLS_asFunctionalComponent(__VLS_28, new __VLS_28({}));
 const __VLS_30 = __VLS_29({}, ...__VLS_functionalComponentArgsRest(__VLS_29));
 var __VLS_27;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+(__VLS_ctx.t('home.latestTitle'));
 const __VLS_32 = {}.ElButton;
 /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
 // @ts-ignore
@@ -237,6 +246,7 @@ const __VLS_44 = {}.Refresh;
 const __VLS_45 = __VLS_asFunctionalComponent(__VLS_44, new __VLS_44({}));
 const __VLS_46 = __VLS_45({}, ...__VLS_functionalComponentArgsRest(__VLS_45));
 var __VLS_43;
+(__VLS_ctx.t('home.syncBtn'));
 var __VLS_35;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "trainers-grid" },
@@ -292,6 +302,7 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.store.latestTrainers))) 
             type: "success",
         }, ...__VLS_functionalComponentArgsRest(__VLS_49));
         __VLS_51.slots.default;
+        (__VLS_ctx.t('home.tagDownloaded'));
         var __VLS_51;
     }
     else {
@@ -307,6 +318,7 @@ for (const [item] of __VLS_getVForSourceType((__VLS_ctx.store.latestTrainers))) 
             type: "info",
         }, ...__VLS_functionalComponentArgsRest(__VLS_53));
         __VLS_55.slots.default;
+        (__VLS_ctx.t('home.tagOnline'));
         var __VLS_55;
     }
 }
@@ -347,6 +359,7 @@ const __VLS_self = (await import('vue')).defineComponent({
             Search: Search,
             Clock: Clock,
             Refresh: Refresh,
+            t: t,
             store: store,
             heroQuery: heroQuery,
             loading: loading,

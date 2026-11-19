@@ -3,14 +3,14 @@
     <!-- Action Bar -->
     <div class="lib-actions-bar">
       <div class="left-stats">
-        <span class="lib-count">已管理修改器: <strong>{{ store.localTrainers.length }}</strong> 款</span>
+        <span class="lib-count">{{ t('library.managedCount') }} <strong>{{ store.localTrainers.length }}</strong> {{ t('library.managedUnit') }}</span>
       </div>
       <div class="right-buttons">
         <el-button :loading="scanningSteam" plain @click="scanSteam">
-          <el-icon><Monitor /></el-icon> 扫描 Steam 游戏库
+          <el-icon><Monitor /></el-icon> {{ t('library.scanSteam') }}
         </el-button>
         <el-button type="primary" plain @click="promptImport">
-          <el-icon><Plus /></el-icon> 导入外部修改器 EXE
+          <el-icon><Plus /></el-icon> {{ t('library.importExe') }}
         </el-button>
       </div>
     </div>
@@ -34,14 +34,14 @@
         </div>
 
         <div class="local-card-info">
-          <div class="game-name">{{ item.game?.name_cn || item.game?.name_en || '未关联游戏' }}</div>
+          <div class="game-name">{{ item.game?.name_cn || item.game?.name_en || t('library.unassociatedGame') }}</div>
           <div class="file-name" :title="item.local_trainer.file_path">
             {{ getFileName(item.local_trainer.file_path) }}
           </div>
 
           <div class="stats-row">
-            <span>运行次数: {{ item.local_trainer.run_count }}</span>
-            <span>大小: {{ formatBytes(item.local_trainer.file_size) }}</span>
+            <span>{{ t('library.runCount') }} {{ item.local_trainer.run_count }}</span>
+            <span>{{ t('library.fileSize') }} {{ formatBytes(item.local_trainer.file_size) }}</span>
           </div>
 
           <div class="card-btns">
@@ -50,19 +50,19 @@
               size="small"
               @click="openLaunchModal(item.local_trainer.id)"
             >
-              <el-icon><VideoPlay /></el-icon> 启动
+              <el-icon><VideoPlay /></el-icon> {{ t('library.launchBtn') }}
             </el-button>
             <el-button
               size="small"
               plain
               @click="openFolder(item.local_trainer.file_path)"
             >
-              目录
+              {{ t('library.folderBtn') }}
             </el-button>
             <el-popconfirm
-              title="确定要从本地库中删除此修改器记录吗？"
-              confirm-button-text="删除"
-              cancel-button-text="取消"
+              :title="t('library.deleteConfirm')"
+              :confirm-button-text="t('library.delete')"
+              :cancel-button-text="t('library.cancel')"
               @confirm="deleteTrainer(item.local_trainer.id)"
             >
               <template #reference>
@@ -77,9 +77,9 @@
     </div>
 
     <div v-else class="empty-wrap">
-      <el-empty description="本地库尚无修改器">
+      <el-empty :description="t('library.emptyLibrary')">
         <template #extra>
-          <p class="empty-tip">在搜索页面下载修改器，或点击上方“导入外部修改器 EXE”进行本地管理。</p>
+          <p class="empty-tip">{{ t('library.emptyLibraryTip') }}</p>
         </template>
       </el-empty>
     </div>
@@ -95,6 +95,7 @@ import { Monitor, Plus, VideoPlay, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAppStore } from '../stores/appStore'
 import { api } from '../api/wails'
+import { t } from '../i18n'
 import SecurityModal from '../components/SecurityModal.vue'
 
 defineOptions({ name: 'LibraryView' })
@@ -113,7 +114,7 @@ async function openLaunchModal(id: number) {
     const card = await api.getSecurityCard(id)
     securityModalRef.value?.open(card)
   } catch (e: any) {
-    ElMessage.error('读取启动信息失败: ' + (e.message || e))
+    ElMessage.error(e?.message || String(e))
   }
 }
 
@@ -121,7 +122,7 @@ async function openFolder(path: string) {
   try {
     await api.openContainingFolder(path)
   } catch (e: any) {
-    ElMessage.error('打开目录失败: ' + (e.message || e))
+    ElMessage.error(e?.message || String(e))
   }
 }
 
@@ -129,10 +130,10 @@ async function scanSteam() {
   scanningSteam.value = true
   try {
     const count = await api.scanSteamGames()
-    ElMessage.success(`Steam 库扫描完成，成功匹配 ${count} 款本地安装游戏`)
+    ElMessage.success(t('library.scanSuccess', { count }))
     await store.refreshLocalTrainers()
   } catch (e: any) {
-    ElMessage.error('扫描失败: ' + (e.message || e))
+    ElMessage.error(t('library.scanFailed') + (e.message || e))
   } finally {
     scanningSteam.value = false
   }
@@ -140,16 +141,16 @@ async function scanSteam() {
 
 async function promptImport() {
   try {
-    const { value: filePath } = await ElMessageBox.prompt('请输入本地修改器可执行程序 (.exe) 的完整绝对路径：', '导入外部修改器', {
-      confirmButtonText: '导入',
-      cancelButtonText: '取消',
+    const { value: filePath } = await ElMessageBox.prompt(t('library.importExe'), t('library.importExe'), {
+      confirmButtonText: t('library.importExe'),
+      cancelButtonText: t('library.cancel'),
       inputPattern: /^.+\.exe$/i,
-      inputErrorMessage: '文件路径必须以 .exe 结尾'
+      inputErrorMessage: '.exe'
     })
 
     if (filePath) {
       await api.importCustomTrainer(1, filePath.trim())
-      ElMessage.success('导入成功')
+      ElMessage.success(t('settings.savedSuccess'))
       await store.refreshLocalTrainers()
     }
   } catch {
@@ -160,10 +161,9 @@ async function promptImport() {
 async function deleteTrainer(id: number) {
   try {
     await api.deleteLocalTrainer(id, false)
-    ElMessage.success('已删除记录')
     await store.refreshLocalTrainers()
   } catch (e: any) {
-    ElMessage.error('删除失败: ' + (e.message || e))
+    ElMessage.error(e?.message || String(e))
   }
 }
 

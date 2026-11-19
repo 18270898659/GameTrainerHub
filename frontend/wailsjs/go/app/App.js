@@ -14,6 +14,10 @@ export function GetConfig() {
   return window['go']['app']['App']['GetConfig']();
 }
 
+export function GetContext() {
+  return window['go']['app']['App']['GetContext']();
+}
+
 export function GetLatestTrainers(arg1) {
   return window['go']['app']['App']['GetLatestTrainers'](arg1);
 }
@@ -32,6 +36,10 @@ export function GetTrainerDetail(arg1) {
 
 export function ImportCustomTrainer(arg1, arg2) {
   return window['go']['app']['App']['ImportCustomTrainer'](arg1, arg2);
+}
+
+export function IsQuitting() {
+  return window['go']['app']['App']['IsQuitting']();
 }
 
 export function LaunchTrainer(arg1, arg2) {
@@ -58,6 +66,14 @@ export function PauseDownload(arg1) {
   return window['go']['app']['App']['PauseDownload'](arg1);
 }
 
+export function Quit() {
+  return window['go']['app']['App']['Quit']();
+}
+
+export function RestoreWindowState() {
+  return window['go']['app']['App']['RestoreWindowState']();
+}
+
 export function ResumeDownload(arg1) {
   return window['go']['app']['App']['ResumeDownload'](arg1);
 }
@@ -66,12 +82,20 @@ export function SaveConfig(arg1) {
   return window['go']['app']['App']['SaveConfig'](arg1);
 }
 
+export function SaveWindowState() {
+  return window['go']['app']['App']['SaveWindowState']();
+}
+
 export function ScanSteamGames() {
   return window['go']['app']['App']['ScanSteamGames']();
 }
 
 export function Search(arg1) {
   return window['go']['app']['App']['Search'](arg1);
+}
+
+export function SelectDownloadDirectory() {
+  return window['go']['app']['App']['SelectDownloadDirectory']();
 }
 
 export function StartDownload(arg1) {

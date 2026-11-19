@@ -300,3 +300,84 @@ func TestOtherGamesRegressionFlow(t *testing.T) {
 	}
 }
 
+func TestWindowAndDirectorySettings(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gth_settings_test_*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	cfg := &config.AppConfig{
+		BaseDir:                tempDir,
+		DataDir:                filepath.Join(tempDir, "data"),
+		DownloadDir:            filepath.Join(tempDir, "downloads"),
+		LogDir:                 filepath.Join(tempDir, "logs"),
+		MaxConcurrentDownloads: 3,
+		RememberWindowSize:     true,
+		WindowWidth:            1400,
+		WindowHeight:           900,
+		RememberWindowPosition: true,
+		WindowX:                100,
+		WindowY:                100,
+		CloseToTray:            true,
+		Language:               "zh-CN",
+	}
+
+	app, err := NewApp(cfg)
+	if err != nil {
+		t.Fatalf("NewApp failed: %v", err)
+	}
+	defer app.Shutdown(context.Background())
+
+	// 1. 测试写权限校验
+	writableDir := filepath.Join(tempDir, "new_downloads")
+	if err := ValidateDirectoryWritable(writableDir); err != nil {
+		t.Fatalf("ValidateDirectoryWritable failed on valid dir: %v", err)
+	}
+
+	// 2. 测试配置更新及并发数动态调整
+	updatedCfg := *app.GetConfig()
+	updatedCfg.MaxConcurrentDownloads = 5
+	updatedCfg.CloseToTray = true
+	updatedCfg.Language = "en-US"
+	updatedCfg.RememberWindowSize = false
+
+	if err := app.SaveConfig(&updatedCfg); err != nil {
+		t.Fatalf("SaveConfig failed: %v", err)
+	}
+
+	saved := app.GetConfig()
+	if saved.MaxConcurrentDownloads != 5 {
+		t.Errorf("expected MaxConcurrentDownloads=5, got %d", saved.MaxConcurrentDownloads)
+	}
+	if saved.Language != "en-US" {
+		t.Errorf("expected Language=en-US, got %s", saved.Language)
+	}
+	if saved.CloseToTray != true {
+		t.Errorf("expected CloseToTray=true, got %v", saved.CloseToTray)
+	}
+	if saved.RememberWindowSize != false {
+		t.Errorf("expected RememberWindowSize=false, got %v", saved.RememberWindowSize)
+	}
+
+	// 3. 测试屏幕有效性校验逻辑
+	onScreen := isPositionOnScreen(100, 100, 1280, 820)
+	t.Logf("isPositionOnScreen(100, 100, 1280, 820) = %v", onScreen)
+
+	// 4. 测试 OnBeforeClose 托盘隐藏逻辑
+	prevent := app.OnBeforeClose(context.Background())
+	if !prevent {
+		t.Errorf("expected OnBeforeClose to prevent close when CloseToTray=true, got %v", prevent)
+	}
+
+	// 5. 测试 Quit 后不拦截
+	app.Quit()
+	if !app.IsQuitting() {
+		t.Errorf("expected isQuitting to be true")
+	}
+	preventAfterQuit := app.OnBeforeClose(context.Background())
+	if preventAfterQuit {
+		t.Errorf("expected OnBeforeClose to NOT prevent close when Quitting=true, got %v", preventAfterQuit)
+	}
+}
+

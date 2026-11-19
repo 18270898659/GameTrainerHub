@@ -3,8 +3,12 @@ package app
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
+	"unsafe"
 
 	"GameTrainerHub/internal/config"
 	"GameTrainerHub/internal/database"
@@ -22,7 +26,39 @@ import (
 	"GameTrainerHub/internal/translate"
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
+	"golang.org/x/sys/windows"
 )
+
+type winRect struct {
+	Left   int32
+	Top    int32
+	Right  int32
+	Bottom int32
+}
+
+var (
+	modUser32           = windows.NewLazySystemDLL("user32.dll")
+	procMonitorFromRect = modUser32.NewProc("MonitorFromRect")
+)
+
+const monitorDefaultToNull = 0
+
+func isPositionOnScreen(x, y, w, h int) bool {
+	if w <= 0 || h <= 0 {
+		return false
+	}
+	if err := procMonitorFromRect.Find(); err != nil {
+		return true // 非 Windows 或无法解析时默认允许
+	}
+	rc := winRect{
+		Left:   int32(x),
+		Top:    int32(y),
+		Right:  int32(x + w),
+		Bottom: int32(y + h),
+	}
+	hMon, _, _ := procMonitorFromRect.Call(uintptr(unsafe.Pointer(&rc)), uintptr(monitorDefaultToNull))
+	return hMon != 0
+}
 
 // App Wails 桌面应用顶层绑定对象
 type App struct {
@@ -44,6 +80,7 @@ type App struct {
 	steamScanner *game.SteamScanner
 	launcher     *launcher.Launcher
 	syncSvc      *sync.SyncService
+	isQuitting   bool
 
 	// 事件推送回调钩子 (Wails runtime.EventsEmit 或测试捕获)
 	EventEmitter func(ctx context.Context, eventName string, data any)
@@ -128,6 +165,9 @@ func (a *App) Startup(ctx context.Context) {
 			runtime.EventsEmit(c, eventName, data)
 		}
 	}
+
+	// 恢复窗口尺寸与屏幕位置
+	a.RestoreWindowState()
 
 	// 恢复上次异常退出的未完成任务
 	_ = a.dlManager.RecoverInterruptedTasks(ctx)
@@ -392,14 +432,182 @@ func (a *App) TriggerSync() (*model.SyncRecord, error) {
 	return a.syncSvc.SyncLatest(ctx, 2)
 }
 
+func isWailsContext(ctx context.Context) bool {
+	return ctx != nil && ctx.Value("frontend") != nil
+}
+
+// GetContext 获取当前应用 context
+func (a *App) GetContext() context.Context {
+	return a.ctx
+}
+
+// IsQuitting 检查当前是否正处于强制退出流程
+func (a *App) IsQuitting() bool {
+	return a.isQuitting
+}
+
+// Quit 显式退出程序
+func (a *App) Quit() {
+	a.isQuitting = true
+	a.SaveWindowState()
+	if isWailsContext(a.ctx) {
+		runtime.Quit(a.ctx)
+	}
+}
+
+// OnBeforeClose 窗口关闭前钩子（拦截最小化到托盘或退出）
+func (a *App) OnBeforeClose(ctx context.Context) (prevent bool) {
+	a.SaveWindowState()
+
+	if a.isQuitting {
+		return false
+	}
+
+	if a.cfg.CloseToTray {
+		if isWailsContext(ctx) {
+			runtime.WindowHide(ctx)
+		}
+		return true
+	}
+
+	return false
+}
+
+// SaveWindowState 保存当前窗口尺寸与位置
+func (a *App) SaveWindowState() {
+	if !isWailsContext(a.ctx) {
+		return
+	}
+	w, h := runtime.WindowGetSize(a.ctx)
+	x, y := runtime.WindowGetPosition(a.ctx)
+
+	_ = a.cfg.Update(func(c *config.AppConfig) {
+		if c.RememberWindowSize && w >= 1024 && h >= 680 {
+			c.WindowWidth = w
+			c.WindowHeight = h
+		}
+		if c.RememberWindowPosition {
+			c.WindowX = x
+			c.WindowY = y
+		}
+	})
+}
+
+// RestoreWindowState 启动时恢复窗口尺寸与位置
+func (a *App) RestoreWindowState() {
+	if !isWailsContext(a.ctx) {
+		return
+	}
+
+	// 1. 恢复或设置窗口尺寸
+	w := 1280
+	h := 820
+	if a.cfg.RememberWindowSize && a.cfg.WindowWidth >= 1024 && a.cfg.WindowHeight >= 680 {
+		w = a.cfg.WindowWidth
+		h = a.cfg.WindowHeight
+	}
+	runtime.WindowSetSize(a.ctx, w, h)
+
+	// 2. 恢复或重置窗口位置（校验多显示器边界有效性）
+	if a.cfg.RememberWindowPosition {
+		if isPositionOnScreen(a.cfg.WindowX, a.cfg.WindowY, w, h) {
+			runtime.WindowSetPosition(a.ctx, a.cfg.WindowX, a.cfg.WindowY)
+		} else {
+			// 超出当前连接屏幕坐标范围，安全居中
+			runtime.WindowCenter(a.ctx)
+		}
+	} else {
+		runtime.WindowCenter(a.ctx)
+	}
+}
+
+// ValidateDirectoryWritable 检查目录是否合法且具备写入权限
+func ValidateDirectoryWritable(dir string) error {
+	cleanDir := filepath.Clean(dir)
+	if err := os.MkdirAll(cleanDir, 0755); err != nil {
+		return fmt.Errorf("创建或访问目录失败: %w", err)
+	}
+
+	testFile := filepath.Join(cleanDir, fmt.Sprintf(".test_write_%d.tmp", time.Now().UnixNano()))
+	f, err := os.OpenFile(testFile, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	if err != nil {
+		return fmt.Errorf("该目录没有写入权限: %w", err)
+	}
+	_, _ = f.WriteString("write_test")
+	_ = f.Close()
+	_ = os.Remove(testFile)
+
+	return nil
+}
+
+func (a *App) hasActiveDownloads(ctx context.Context) bool {
+	if a.dlManager != nil && a.dlManager.HasActiveTasks() {
+		return true
+	}
+	if a.dlRepo != nil {
+		tasks, err := a.dlRepo.ListTasks(ctx, "")
+		if err == nil {
+			for _, t := range tasks {
+				if t.Status == model.DownloadStatusDownloading || t.Status == model.DownloadStatusRetrying {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// SelectDownloadDirectory 唤起原生文件夹选择对话框并校验写入权限
+func (a *App) SelectDownloadDirectory() (string, error) {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+
+	// 检查当前是否有正在进行的下载任务
+	if a.hasActiveDownloads(ctx) {
+		return "", fmt.Errorf("当前有正在进行的下载任务，请等待下载完成或暂停任务后再更改存储路径")
+	}
+
+	if !isWailsContext(a.ctx) {
+		return "", fmt.Errorf("桌面上下文未就绪")
+	}
+
+	selectedDir, err := runtime.OpenDirectoryDialog(a.ctx, runtime.OpenDialogOptions{
+		DefaultDirectory: a.cfg.DownloadDir,
+		Title:            "选择修改器默认下载目录",
+	})
+	if err != nil {
+		return "", fmt.Errorf("打开目录选择对话框失败: %w", err)
+	}
+	if selectedDir == "" {
+		return "", nil // 用户取消操作
+	}
+
+	if err := ValidateDirectoryWritable(selectedDir); err != nil {
+		return "", err
+	}
+
+	// 校验通过，更新持久化配置
+	err = a.cfg.Update(func(c *config.AppConfig) {
+		c.DownloadDir = selectedDir
+	})
+	if err != nil {
+		return "", fmt.Errorf("保存下载目录配置失败: %w", err)
+	}
+
+	logger.Info("Updated default download directory", "dir", selectedDir)
+	return selectedDir, nil
+}
+
 // GetConfig 获取当前配置
 func (a *App) GetConfig() *config.AppConfig {
 	return a.cfg
 }
 
-// SaveConfig 保存配置更新
+// SaveConfig 保存配置更新并动态更新调度器
 func (a *App) SaveConfig(updated *config.AppConfig) error {
-	return a.cfg.Update(func(c *config.AppConfig) {
+	err := a.cfg.Update(func(c *config.AppConfig) {
 		c.DownloadDir = updated.DownloadDir
 		c.MaxConcurrentDownloads = updated.MaxConcurrentDownloads
 		c.AutoSyncEnabled = updated.AutoSyncEnabled
@@ -408,5 +616,16 @@ func (a *App) SaveConfig(updated *config.AppConfig) error {
 		c.Theme = updated.Theme
 		c.Language = updated.Language
 		c.SafeLaunchPrompt = updated.SafeLaunchPrompt
+		c.CloseToTray = updated.CloseToTray
+		c.RememberWindowSize = updated.RememberWindowSize
+		c.RememberWindowPosition = updated.RememberWindowPosition
 	})
+	if err != nil {
+		return err
+	}
+
+	if a.dlManager != nil {
+		a.dlManager.SetMaxConcurrent(updated.MaxConcurrentDownloads)
+	}
+	return nil
 }

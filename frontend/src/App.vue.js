@@ -4,20 +4,25 @@ import { useRoute } from 'vue-router';
 import { House, Search, Download, Collection, Setting } from '@element-plus/icons-vue';
 import { useAppStore } from './stores/appStore';
 import { api } from './api/wails';
+import { t, currentElementLocale, setLanguage } from './i18n';
 const route = useRoute();
 const store = useAppStore();
 const pageTitle = computed(() => {
     switch (route.path) {
-        case '/': return '首页概览';
-        case '/search': return '中英双向修改器检索';
-        case '/downloads': return '下载与任务管理';
-        case '/library': return '本地修改器库与启动器';
-        case '/settings': return '客户端配置';
+        case '/': return t('nav.pageTitleHome');
+        case '/search': return t('nav.pageTitleSearch');
+        case '/downloads': return t('nav.pageTitleDownloads');
+        case '/library': return t('nav.pageTitleLibrary');
+        case '/settings': return t('nav.pageTitleSettings');
         default: return 'Game Trainer Hub';
     }
 });
 let unregisterEvents;
 onMounted(async () => {
+    await store.refreshConfig();
+    if (store.config?.language) {
+        setLanguage(store.config.language);
+    }
     await store.refreshDownloads();
     await store.refreshLocalTrainers();
     // 注册 Wails 事件流
@@ -36,6 +41,17 @@ let __VLS_components;
 let __VLS_directives;
 // CSS variable injection 
 // CSS variable injection end 
+const __VLS_0 = {}.ElConfigProvider;
+/** @type {[typeof __VLS_components.ElConfigProvider, typeof __VLS_components.elConfigProvider, typeof __VLS_components.ElConfigProvider, typeof __VLS_components.elConfigProvider, ]} */ ;
+// @ts-ignore
+const __VLS_1 = __VLS_asFunctionalComponent(__VLS_0, new __VLS_0({
+    locale: (__VLS_ctx.currentElementLocale),
+}));
+const __VLS_2 = __VLS_1({
+    locale: (__VLS_ctx.currentElementLocale),
+}, ...__VLS_functionalComponentArgsRest(__VLS_1));
+var __VLS_4 = {};
+__VLS_3.slots.default;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "app-layout" },
 });
@@ -54,148 +70,155 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "brand-name" },
 });
+(__VLS_ctx.t('brand.name'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "brand-sub" },
 });
+(__VLS_ctx.t('brand.sub'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.nav, __VLS_intrinsicElements.nav)({
     ...{ class: "nav-menu" },
 });
-const __VLS_0 = {}.RouterLink;
+const __VLS_5 = {}.RouterLink;
 /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, ]} */ ;
 // @ts-ignore
-const __VLS_1 = __VLS_asFunctionalComponent(__VLS_0, new __VLS_0({
+const __VLS_6 = __VLS_asFunctionalComponent(__VLS_5, new __VLS_5({
     to: "/",
     ...{ class: "nav-item" },
 }));
-const __VLS_2 = __VLS_1({
+const __VLS_7 = __VLS_6({
     to: "/",
     ...{ class: "nav-item" },
-}, ...__VLS_functionalComponentArgsRest(__VLS_1));
-__VLS_3.slots.default;
-const __VLS_4 = {}.ElIcon;
+}, ...__VLS_functionalComponentArgsRest(__VLS_6));
+__VLS_8.slots.default;
+const __VLS_9 = {}.ElIcon;
 /** @type {[typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, ]} */ ;
 // @ts-ignore
-const __VLS_5 = __VLS_asFunctionalComponent(__VLS_4, new __VLS_4({}));
-const __VLS_6 = __VLS_5({}, ...__VLS_functionalComponentArgsRest(__VLS_5));
-__VLS_7.slots.default;
-const __VLS_8 = {}.House;
+const __VLS_10 = __VLS_asFunctionalComponent(__VLS_9, new __VLS_9({}));
+const __VLS_11 = __VLS_10({}, ...__VLS_functionalComponentArgsRest(__VLS_10));
+__VLS_12.slots.default;
+const __VLS_13 = {}.House;
 /** @type {[typeof __VLS_components.House, ]} */ ;
 // @ts-ignore
-const __VLS_9 = __VLS_asFunctionalComponent(__VLS_8, new __VLS_8({}));
-const __VLS_10 = __VLS_9({}, ...__VLS_functionalComponentArgsRest(__VLS_9));
-var __VLS_7;
+const __VLS_14 = __VLS_asFunctionalComponent(__VLS_13, new __VLS_13({}));
+const __VLS_15 = __VLS_14({}, ...__VLS_functionalComponentArgsRest(__VLS_14));
+var __VLS_12;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-var __VLS_3;
-const __VLS_12 = {}.RouterLink;
+(__VLS_ctx.t('nav.home'));
+var __VLS_8;
+const __VLS_17 = {}.RouterLink;
 /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, ]} */ ;
 // @ts-ignore
-const __VLS_13 = __VLS_asFunctionalComponent(__VLS_12, new __VLS_12({
+const __VLS_18 = __VLS_asFunctionalComponent(__VLS_17, new __VLS_17({
     to: "/search",
     ...{ class: "nav-item" },
 }));
-const __VLS_14 = __VLS_13({
+const __VLS_19 = __VLS_18({
     to: "/search",
     ...{ class: "nav-item" },
-}, ...__VLS_functionalComponentArgsRest(__VLS_13));
-__VLS_15.slots.default;
-const __VLS_16 = {}.ElIcon;
+}, ...__VLS_functionalComponentArgsRest(__VLS_18));
+__VLS_20.slots.default;
+const __VLS_21 = {}.ElIcon;
 /** @type {[typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, ]} */ ;
 // @ts-ignore
-const __VLS_17 = __VLS_asFunctionalComponent(__VLS_16, new __VLS_16({}));
-const __VLS_18 = __VLS_17({}, ...__VLS_functionalComponentArgsRest(__VLS_17));
-__VLS_19.slots.default;
-const __VLS_20 = {}.Search;
+const __VLS_22 = __VLS_asFunctionalComponent(__VLS_21, new __VLS_21({}));
+const __VLS_23 = __VLS_22({}, ...__VLS_functionalComponentArgsRest(__VLS_22));
+__VLS_24.slots.default;
+const __VLS_25 = {}.Search;
 /** @type {[typeof __VLS_components.Search, ]} */ ;
 // @ts-ignore
-const __VLS_21 = __VLS_asFunctionalComponent(__VLS_20, new __VLS_20({}));
-const __VLS_22 = __VLS_21({}, ...__VLS_functionalComponentArgsRest(__VLS_21));
-var __VLS_19;
+const __VLS_26 = __VLS_asFunctionalComponent(__VLS_25, new __VLS_25({}));
+const __VLS_27 = __VLS_26({}, ...__VLS_functionalComponentArgsRest(__VLS_26));
+var __VLS_24;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-var __VLS_15;
-const __VLS_24 = {}.RouterLink;
+(__VLS_ctx.t('nav.search'));
+var __VLS_20;
+const __VLS_29 = {}.RouterLink;
 /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, ]} */ ;
 // @ts-ignore
-const __VLS_25 = __VLS_asFunctionalComponent(__VLS_24, new __VLS_24({
+const __VLS_30 = __VLS_asFunctionalComponent(__VLS_29, new __VLS_29({
     to: "/downloads",
     ...{ class: "nav-item" },
 }));
-const __VLS_26 = __VLS_25({
+const __VLS_31 = __VLS_30({
     to: "/downloads",
     ...{ class: "nav-item" },
-}, ...__VLS_functionalComponentArgsRest(__VLS_25));
-__VLS_27.slots.default;
-const __VLS_28 = {}.ElIcon;
+}, ...__VLS_functionalComponentArgsRest(__VLS_30));
+__VLS_32.slots.default;
+const __VLS_33 = {}.ElIcon;
 /** @type {[typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, ]} */ ;
 // @ts-ignore
-const __VLS_29 = __VLS_asFunctionalComponent(__VLS_28, new __VLS_28({}));
-const __VLS_30 = __VLS_29({}, ...__VLS_functionalComponentArgsRest(__VLS_29));
-__VLS_31.slots.default;
-const __VLS_32 = {}.Download;
+const __VLS_34 = __VLS_asFunctionalComponent(__VLS_33, new __VLS_33({}));
+const __VLS_35 = __VLS_34({}, ...__VLS_functionalComponentArgsRest(__VLS_34));
+__VLS_36.slots.default;
+const __VLS_37 = {}.Download;
 /** @type {[typeof __VLS_components.Download, ]} */ ;
 // @ts-ignore
-const __VLS_33 = __VLS_asFunctionalComponent(__VLS_32, new __VLS_32({}));
-const __VLS_34 = __VLS_33({}, ...__VLS_functionalComponentArgsRest(__VLS_33));
-var __VLS_31;
+const __VLS_38 = __VLS_asFunctionalComponent(__VLS_37, new __VLS_37({}));
+const __VLS_39 = __VLS_38({}, ...__VLS_functionalComponentArgsRest(__VLS_38));
+var __VLS_36;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+(__VLS_ctx.t('nav.downloads'));
 if (__VLS_ctx.store.activeDownloadsCount > 0) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
         ...{ class: "nav-badge" },
     });
     (__VLS_ctx.store.activeDownloadsCount);
 }
-var __VLS_27;
-const __VLS_36 = {}.RouterLink;
+var __VLS_32;
+const __VLS_41 = {}.RouterLink;
 /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, ]} */ ;
 // @ts-ignore
-const __VLS_37 = __VLS_asFunctionalComponent(__VLS_36, new __VLS_36({
+const __VLS_42 = __VLS_asFunctionalComponent(__VLS_41, new __VLS_41({
     to: "/library",
     ...{ class: "nav-item" },
 }));
-const __VLS_38 = __VLS_37({
+const __VLS_43 = __VLS_42({
     to: "/library",
     ...{ class: "nav-item" },
-}, ...__VLS_functionalComponentArgsRest(__VLS_37));
-__VLS_39.slots.default;
-const __VLS_40 = {}.ElIcon;
+}, ...__VLS_functionalComponentArgsRest(__VLS_42));
+__VLS_44.slots.default;
+const __VLS_45 = {}.ElIcon;
 /** @type {[typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, ]} */ ;
 // @ts-ignore
-const __VLS_41 = __VLS_asFunctionalComponent(__VLS_40, new __VLS_40({}));
-const __VLS_42 = __VLS_41({}, ...__VLS_functionalComponentArgsRest(__VLS_41));
-__VLS_43.slots.default;
-const __VLS_44 = {}.Collection;
+const __VLS_46 = __VLS_asFunctionalComponent(__VLS_45, new __VLS_45({}));
+const __VLS_47 = __VLS_46({}, ...__VLS_functionalComponentArgsRest(__VLS_46));
+__VLS_48.slots.default;
+const __VLS_49 = {}.Collection;
 /** @type {[typeof __VLS_components.Collection, ]} */ ;
 // @ts-ignore
-const __VLS_45 = __VLS_asFunctionalComponent(__VLS_44, new __VLS_44({}));
-const __VLS_46 = __VLS_45({}, ...__VLS_functionalComponentArgsRest(__VLS_45));
-var __VLS_43;
+const __VLS_50 = __VLS_asFunctionalComponent(__VLS_49, new __VLS_49({}));
+const __VLS_51 = __VLS_50({}, ...__VLS_functionalComponentArgsRest(__VLS_50));
+var __VLS_48;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-var __VLS_39;
-const __VLS_48 = {}.RouterLink;
+(__VLS_ctx.t('nav.library'));
+var __VLS_44;
+const __VLS_53 = {}.RouterLink;
 /** @type {[typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, typeof __VLS_components.RouterLink, typeof __VLS_components.routerLink, ]} */ ;
 // @ts-ignore
-const __VLS_49 = __VLS_asFunctionalComponent(__VLS_48, new __VLS_48({
+const __VLS_54 = __VLS_asFunctionalComponent(__VLS_53, new __VLS_53({
     to: "/settings",
     ...{ class: "nav-item" },
 }));
-const __VLS_50 = __VLS_49({
+const __VLS_55 = __VLS_54({
     to: "/settings",
     ...{ class: "nav-item" },
-}, ...__VLS_functionalComponentArgsRest(__VLS_49));
-__VLS_51.slots.default;
-const __VLS_52 = {}.ElIcon;
+}, ...__VLS_functionalComponentArgsRest(__VLS_54));
+__VLS_56.slots.default;
+const __VLS_57 = {}.ElIcon;
 /** @type {[typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, typeof __VLS_components.ElIcon, typeof __VLS_components.elIcon, ]} */ ;
 // @ts-ignore
-const __VLS_53 = __VLS_asFunctionalComponent(__VLS_52, new __VLS_52({}));
-const __VLS_54 = __VLS_53({}, ...__VLS_functionalComponentArgsRest(__VLS_53));
-__VLS_55.slots.default;
-const __VLS_56 = {}.Setting;
+const __VLS_58 = __VLS_asFunctionalComponent(__VLS_57, new __VLS_57({}));
+const __VLS_59 = __VLS_58({}, ...__VLS_functionalComponentArgsRest(__VLS_58));
+__VLS_60.slots.default;
+const __VLS_61 = {}.Setting;
 /** @type {[typeof __VLS_components.Setting, ]} */ ;
 // @ts-ignore
-const __VLS_57 = __VLS_asFunctionalComponent(__VLS_56, new __VLS_56({}));
-const __VLS_58 = __VLS_57({}, ...__VLS_functionalComponentArgsRest(__VLS_57));
-var __VLS_55;
+const __VLS_62 = __VLS_asFunctionalComponent(__VLS_61, new __VLS_61({}));
+const __VLS_63 = __VLS_62({}, ...__VLS_functionalComponentArgsRest(__VLS_62));
+var __VLS_60;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
-var __VLS_51;
+(__VLS_ctx.t('nav.settings'));
+var __VLS_56;
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "sidebar-footer" },
 });
@@ -206,6 +229,7 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.
     ...{ class: "status-dot" },
 });
 __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({});
+(__VLS_ctx.t('nav.sourceConnected'));
 __VLS_asFunctionalElement(__VLS_intrinsicElements.main, __VLS_intrinsicElements.main)({
     ...{ class: "main-content" },
 });
@@ -219,32 +243,33 @@ __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.d
 __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
     ...{ class: "page-container" },
 });
-const __VLS_60 = {}.RouterView;
+const __VLS_65 = {}.RouterView;
 /** @type {[typeof __VLS_components.RouterView, typeof __VLS_components.routerView, typeof __VLS_components.RouterView, typeof __VLS_components.routerView, ]} */ ;
 // @ts-ignore
-const __VLS_61 = __VLS_asFunctionalComponent(__VLS_60, new __VLS_60({}));
-const __VLS_62 = __VLS_61({}, ...__VLS_functionalComponentArgsRest(__VLS_61));
+const __VLS_66 = __VLS_asFunctionalComponent(__VLS_65, new __VLS_65({}));
+const __VLS_67 = __VLS_66({}, ...__VLS_functionalComponentArgsRest(__VLS_66));
 {
-    const { default: __VLS_thisSlot } = __VLS_63.slots;
+    const { default: __VLS_thisSlot } = __VLS_68.slots;
     const [{ Component }] = __VLS_getSlotParams(__VLS_thisSlot);
-    const __VLS_64 = {}.KeepAlive;
+    const __VLS_69 = {}.KeepAlive;
     /** @type {[typeof __VLS_components.KeepAlive, typeof __VLS_components.keepAlive, typeof __VLS_components.KeepAlive, typeof __VLS_components.keepAlive, ]} */ ;
     // @ts-ignore
-    const __VLS_65 = __VLS_asFunctionalComponent(__VLS_64, new __VLS_64({
+    const __VLS_70 = __VLS_asFunctionalComponent(__VLS_69, new __VLS_69({
         include: "SearchView,DownloadsView,LibraryView",
     }));
-    const __VLS_66 = __VLS_65({
+    const __VLS_71 = __VLS_70({
         include: "SearchView,DownloadsView,LibraryView",
-    }, ...__VLS_functionalComponentArgsRest(__VLS_65));
-    __VLS_67.slots.default;
-    const __VLS_68 = ((Component));
+    }, ...__VLS_functionalComponentArgsRest(__VLS_70));
+    __VLS_72.slots.default;
+    const __VLS_73 = ((Component));
     // @ts-ignore
-    const __VLS_69 = __VLS_asFunctionalComponent(__VLS_68, new __VLS_68({}));
-    const __VLS_70 = __VLS_69({}, ...__VLS_functionalComponentArgsRest(__VLS_69));
-    var __VLS_67;
-    __VLS_63.slots['' /* empty slot name completion */];
+    const __VLS_74 = __VLS_asFunctionalComponent(__VLS_73, new __VLS_73({}));
+    const __VLS_75 = __VLS_74({}, ...__VLS_functionalComponentArgsRest(__VLS_74));
+    var __VLS_72;
+    __VLS_68.slots['' /* empty slot name completion */];
 }
-var __VLS_63;
+var __VLS_68;
+var __VLS_3;
 /** @type {__VLS_StyleScopedClasses['app-layout']} */ ;
 /** @type {__VLS_StyleScopedClasses['sidebar']} */ ;
 /** @type {__VLS_StyleScopedClasses['app-brand']} */ ;
@@ -275,6 +300,8 @@ const __VLS_self = (await import('vue')).defineComponent({
             Download: Download,
             Collection: Collection,
             Setting: Setting,
+            t: t,
+            currentElementLocale: currentElementLocale,
             store: store,
             pageTitle: pageTitle,
         };

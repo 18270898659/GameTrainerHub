@@ -145,5 +145,11 @@ export interface AppConfig {
   log_level: string
   safe_launch_prompt: boolean
   close_to_tray: boolean
+  remember_window_size: boolean
+  window_width: number
+  window_height: number
+  remember_window_position: boolean
+  window_x: number
+  window_y: number
 }
 

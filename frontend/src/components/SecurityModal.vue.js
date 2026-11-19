@@ -2,6 +2,7 @@
 import { ref } from 'vue';
 import { ElMessage } from 'element-plus';
 import { api } from '../api/wails';
+import { t } from '../i18n';
 const visible = ref(false);
 const card = ref(null);
 const runAsAdmin = ref(false);
@@ -22,7 +23,7 @@ function formatBytes(bytes) {
 function copyHash() {
     if (card.value?.sha256) {
         navigator.clipboard.writeText(card.value.sha256);
-        ElMessage.success('SHA-256 哈希值已复制到剪贴板');
+        ElMessage.success(t('security.copied'));
     }
 }
 async function openFolder() {
@@ -31,7 +32,7 @@ async function openFolder() {
             await api.openContainingFolder(card.value.file_path);
         }
         catch (e) {
-            ElMessage.error('打开目录失败: ' + (e?.message || e));
+            ElMessage.error(e?.message || String(e));
         }
     }
 }
@@ -41,16 +42,16 @@ async function confirmLaunch() {
     launching.value = true;
     try {
         await api.launchTrainer(card.value.trainer_id, runAsAdmin.value);
-        ElMessage.success('修改器已成功拉起运行');
+        ElMessage.success(t('security.launchSuccess'));
         visible.value = false;
     }
     catch (e) {
         const msg = e?.message || e || '';
         if (msg.includes('取消') || msg.includes('cancel')) {
-            ElMessage.warning('已取消启动: ' + msg);
+            ElMessage.warning(msg);
         }
         else {
-            ElMessage.error('启动失败: ' + msg);
+            ElMessage.error(t('security.launchFailed') + msg);
         }
     }
     finally {
@@ -72,14 +73,14 @@ const __VLS_0 = {}.ElDialog;
 // @ts-ignore
 const __VLS_1 = __VLS_asFunctionalComponent(__VLS_0, new __VLS_0({
     modelValue: (__VLS_ctx.visible),
-    title: "修改器安全启动确认",
+    title: (__VLS_ctx.t('security.modalTitle')),
     width: "580px",
     ...{ class: "security-modal" },
     closeOnClickModal: (false),
 }));
 const __VLS_2 = __VLS_1({
     modelValue: (__VLS_ctx.visible),
-    title: "修改器安全启动确认",
+    title: (__VLS_ctx.t('security.modalTitle')),
     width: "580px",
     ...{ class: "security-modal" },
     closeOnClickModal: (false),
@@ -94,14 +95,14 @@ if (__VLS_ctx.card) {
     /** @type {[typeof __VLS_components.ElAlert, typeof __VLS_components.elAlert, typeof __VLS_components.ElAlert, typeof __VLS_components.elAlert, ]} */ ;
     // @ts-ignore
     const __VLS_6 = __VLS_asFunctionalComponent(__VLS_5, new __VLS_5({
-        title: "安全合规与透明运行提示",
+        title: (__VLS_ctx.t('security.alertTitle')),
         type: "warning",
         closable: (false),
         showIcon: true,
         ...{ class: "mb-3" },
     }));
     const __VLS_7 = __VLS_6({
-        title: "安全合规与透明运行提示",
+        title: (__VLS_ctx.t('security.alertTitle')),
         type: "warning",
         closable: (false),
         showIcon: true,
@@ -113,6 +114,7 @@ if (__VLS_ctx.card) {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
             ...{ class: "alert-desc" },
         });
+        (__VLS_ctx.t('security.alertDesc'));
     }
     var __VLS_8;
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
@@ -124,6 +126,7 @@ if (__VLS_ctx.card) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
         ...{ class: "label" },
     });
+    (__VLS_ctx.t('security.targetGame'));
     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
         ...{ class: "val font-bold" },
     });
@@ -134,6 +137,7 @@ if (__VLS_ctx.card) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
         ...{ class: "label" },
     });
+    (__VLS_ctx.t('security.fileName'));
     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
         ...{ class: "val" },
     });
@@ -144,6 +148,7 @@ if (__VLS_ctx.card) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
         ...{ class: "label" },
     });
+    (__VLS_ctx.t('security.fileSize'));
     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
         ...{ class: "val" },
     });
@@ -154,6 +159,7 @@ if (__VLS_ctx.card) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
         ...{ class: "label" },
     });
+    (__VLS_ctx.t('security.resourceSource'));
     const __VLS_9 = {}.ElTag;
     /** @type {[typeof __VLS_components.ElTag, typeof __VLS_components.elTag, typeof __VLS_components.ElTag, typeof __VLS_components.elTag, ]} */ ;
     // @ts-ignore
@@ -174,6 +180,7 @@ if (__VLS_ctx.card) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
         ...{ class: "label" },
     });
+    (__VLS_ctx.t('security.sha256'));
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "val hash-text" },
     });
@@ -201,6 +208,7 @@ if (__VLS_ctx.card) {
         onClick: (__VLS_ctx.copyHash)
     };
     __VLS_16.slots.default;
+    (__VLS_ctx.t('security.copy'));
     var __VLS_16;
     __VLS_asFunctionalElement(__VLS_intrinsicElements.div, __VLS_intrinsicElements.div)({
         ...{ class: "info-row" },
@@ -208,6 +216,7 @@ if (__VLS_ctx.card) {
     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
         ...{ class: "label" },
     });
+    (__VLS_ctx.t('security.localPath'));
     __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
         ...{ class: "val path-text" },
         title: (__VLS_ctx.card.file_path),
@@ -226,15 +235,18 @@ if (__VLS_ctx.card) {
         modelValue: (__VLS_ctx.runAsAdmin),
     }, ...__VLS_functionalComponentArgsRest(__VLS_22));
     __VLS_24.slots.default;
+    (__VLS_ctx.t('security.runAsAdmin'));
     if (__VLS_ctx.card.requires_admin) {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
             ...{ class: "admin-hint-alert" },
         });
+        (__VLS_ctx.t('security.adminAlert'));
     }
     else {
         __VLS_asFunctionalElement(__VLS_intrinsicElements.span, __VLS_intrinsicElements.span)({
             ...{ class: "admin-hint" },
         });
+        (__VLS_ctx.t('security.adminHint'));
     }
     var __VLS_24;
 }
@@ -261,6 +273,7 @@ if (__VLS_ctx.card) {
         onClick: (__VLS_ctx.openFolder)
     };
     __VLS_28.slots.default;
+    (__VLS_ctx.t('security.openFolder'));
     var __VLS_28;
     const __VLS_33 = {}.ElButton;
     /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
@@ -280,6 +293,7 @@ if (__VLS_ctx.card) {
         }
     };
     __VLS_36.slots.default;
+    (__VLS_ctx.t('library.cancel'));
     var __VLS_36;
     const __VLS_41 = {}.ElButton;
     /** @type {[typeof __VLS_components.ElButton, typeof __VLS_components.elButton, typeof __VLS_components.ElButton, typeof __VLS_components.elButton, ]} */ ;
@@ -301,6 +315,7 @@ if (__VLS_ctx.card) {
         onClick: (__VLS_ctx.confirmLaunch)
     };
     __VLS_44.slots.default;
+    (__VLS_ctx.t('security.confirmLaunch'));
     var __VLS_44;
 }
 var __VLS_3;
@@ -339,6 +354,7 @@ var __VLS_dollars;
 const __VLS_self = (await import('vue')).defineComponent({
     setup() {
         return {
+            t: t,
             visible: visible,
             card: card,
             runAsAdmin: runAsAdmin,

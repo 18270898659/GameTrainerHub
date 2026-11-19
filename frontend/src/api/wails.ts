@@ -39,6 +39,7 @@ declare global {
           TriggerSync: () => Promise<any>
           GetConfig: () => Promise<AppConfig>
           SaveConfig: (cfg: AppConfig) => Promise<void>
+          SelectDownloadDirectory: () => Promise<string>
         }
       }
     }
@@ -241,7 +242,13 @@ export const api = {
       language: 'zh-CN',
       log_level: 'info',
       safe_launch_prompt: true,
-      close_to_tray: false
+      close_to_tray: false,
+      remember_window_size: true,
+      window_width: 1280,
+      window_height: 820,
+      remember_window_position: false,
+      window_x: 0,
+      window_y: 0
     }
   },
 
@@ -249,6 +256,13 @@ export const api = {
     if (isWails()) {
       return window.go!.app!.App!.SaveConfig(cfg)
     }
+  },
+
+  async selectDownloadDirectory(): Promise<string> {
+    if (isWails()) {
+      return window.go!.app!.App!.SelectDownloadDirectory()
+    }
+    return ''
   },
 
   onDownloadProgress(callback: (task: DownloadTask) => void): (() => void) | undefined {

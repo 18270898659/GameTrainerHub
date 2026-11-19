@@ -1,68 +1,70 @@
 <template>
-  <div class="app-layout">
-    <!-- Left Sidebar -->
-    <aside class="sidebar">
-      <div class="app-brand">
-        <div class="logo-icon">⚡</div>
-        <div class="brand-text">
-          <div class="brand-name">Trainer Hub</div>
-          <div class="brand-sub">PC 修改器管理端</div>
+  <el-config-provider :locale="currentElementLocale">
+    <div class="app-layout">
+      <!-- Left Sidebar -->
+      <aside class="sidebar">
+        <div class="app-brand">
+          <div class="logo-icon">⚡</div>
+          <div class="brand-text">
+            <div class="brand-name">{{ t('brand.name') }}</div>
+            <div class="brand-sub">{{ t('brand.sub') }}</div>
+          </div>
         </div>
-      </div>
 
-      <nav class="nav-menu">
-        <router-link to="/" class="nav-item">
-          <el-icon><House /></el-icon>
-          <span>首页</span>
-        </router-link>
+        <nav class="nav-menu">
+          <router-link to="/" class="nav-item">
+            <el-icon><House /></el-icon>
+            <span>{{ t('nav.home') }}</span>
+          </router-link>
 
-        <router-link to="/search" class="nav-item">
-          <el-icon><Search /></el-icon>
-          <span>游戏搜索</span>
-        </router-link>
+          <router-link to="/search" class="nav-item">
+            <el-icon><Search /></el-icon>
+            <span>{{ t('nav.search') }}</span>
+          </router-link>
 
-        <router-link to="/downloads" class="nav-item">
-          <el-icon><Download /></el-icon>
-          <span>下载管理</span>
-          <span v-if="store.activeDownloadsCount > 0" class="nav-badge">
-            {{ store.activeDownloadsCount }}
-          </span>
-        </router-link>
+          <router-link to="/downloads" class="nav-item">
+            <el-icon><Download /></el-icon>
+            <span>{{ t('nav.downloads') }}</span>
+            <span v-if="store.activeDownloadsCount > 0" class="nav-badge">
+              {{ store.activeDownloadsCount }}
+            </span>
+          </router-link>
 
-        <router-link to="/library" class="nav-item">
-          <el-icon><Collection /></el-icon>
-          <span>本地修改器</span>
-        </router-link>
+          <router-link to="/library" class="nav-item">
+            <el-icon><Collection /></el-icon>
+            <span>{{ t('nav.library') }}</span>
+          </router-link>
 
-        <router-link to="/settings" class="nav-item">
-          <el-icon><Setting /></el-icon>
-          <span>客户端设置</span>
-        </router-link>
-      </nav>
+          <router-link to="/settings" class="nav-item">
+            <el-icon><Setting /></el-icon>
+            <span>{{ t('nav.settings') }}</span>
+          </router-link>
+        </nav>
 
-      <div class="sidebar-footer">
-        <div class="source-status">
-          <span class="status-dot"></span>
-          <span>FLiNG 源已连接</span>
+        <div class="sidebar-footer">
+          <div class="source-status">
+            <span class="status-dot"></span>
+            <span>{{ t('nav.sourceConnected') }}</span>
+          </div>
         </div>
-      </div>
-    </aside>
+      </aside>
 
-    <!-- Main Content -->
-    <main class="main-content">
-      <header class="top-bar">
-        <div class="window-title">{{ pageTitle }}</div>
-      </header>
+      <!-- Main Content -->
+      <main class="main-content">
+        <header class="top-bar">
+          <div class="window-title">{{ pageTitle }}</div>
+        </header>
 
-      <div class="page-container">
-        <router-view v-slot="{ Component }">
-          <keep-alive include="SearchView,DownloadsView,LibraryView">
-            <component :is="Component" />
-          </keep-alive>
-        </router-view>
-      </div>
-    </main>
-  </div>
+        <div class="page-container">
+          <router-view v-slot="{ Component }">
+            <keep-alive include="SearchView,DownloadsView,LibraryView">
+              <component :is="Component" />
+            </keep-alive>
+          </router-view>
+        </div>
+      </main>
+    </div>
+  </el-config-provider>
 </template>
 
 <script setup lang="ts">
@@ -71,17 +73,18 @@ import { useRoute } from 'vue-router'
 import { House, Search, Download, Collection, Setting } from '@element-plus/icons-vue'
 import { useAppStore } from './stores/appStore'
 import { api } from './api/wails'
+import { t, currentElementLocale, setLanguage, type SupportedLanguage } from './i18n'
 
 const route = useRoute()
 const store = useAppStore()
 
 const pageTitle = computed(() => {
   switch (route.path) {
-    case '/': return '首页概览'
-    case '/search': return '中英双向修改器检索'
-    case '/downloads': return '下载与任务管理'
-    case '/library': return '本地修改器库与启动器'
-    case '/settings': return '客户端配置'
+    case '/': return t('nav.pageTitleHome')
+    case '/search': return t('nav.pageTitleSearch')
+    case '/downloads': return t('nav.pageTitleDownloads')
+    case '/library': return t('nav.pageTitleLibrary')
+    case '/settings': return t('nav.pageTitleSettings')
     default: return 'Game Trainer Hub'
   }
 })
@@ -89,6 +92,10 @@ const pageTitle = computed(() => {
 let unregisterEvents: (() => void) | undefined
 
 onMounted(async () => {
+  await store.refreshConfig()
+  if (store.config?.language) {
+    setLanguage(store.config.language as SupportedLanguage)
+  }
   await store.refreshDownloads()
   await store.refreshLocalTrainers()
 

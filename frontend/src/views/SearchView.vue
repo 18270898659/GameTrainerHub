@@ -6,7 +6,7 @@
         <el-input
           v-model="store.query"
           size="large"
-          placeholder="中英双向搜索：黑神话：悟空 / Black Myth / 赛博朋克2077 / Cyberpunk / sbpk / 老头环..."
+          :placeholder="t('search.placeholder')"
           clearable
           @keyup.enter="handleSearch"
         >
@@ -14,14 +14,14 @@
             <el-icon><Search /></el-icon>
           </template>
           <template #append>
-            <el-button type="primary" :loading="store.searching" @click="handleSearch">搜索</el-button>
+            <el-button type="primary" :loading="store.searching" @click="handleSearch">{{ t('search.searchBtn') }}</el-button>
           </template>
         </el-input>
       </div>
 
       <!-- 搜索历史 -->
       <div v-if="store.searchHistory.length > 0" class="history-bar">
-        <span class="history-label">最近搜索:</span>
+        <span class="history-label">{{ t('search.recentSearch') }}</span>
         <div class="history-tags">
           <el-tag
             v-for="item in store.searchHistory"
@@ -34,15 +34,15 @@
           >
             {{ item }}
           </el-tag>
-          <el-button link type="info" size="small" class="clear-btn" @click="store.clearSearchHistory">清空</el-button>
+          <el-button link type="info" size="small" class="clear-btn" @click="store.clearSearchHistory">{{ t('search.clear') }}</el-button>
         </div>
       </div>
 
       <div class="filter-bar">
-        <el-checkbox v-model="store.localOnly" @change="handleSearch">仅搜本地已收录</el-checkbox>
+        <el-checkbox v-model="store.localOnly" @change="handleSearch">{{ t('search.localOnly') }}</el-checkbox>
         <el-radio-group v-model="store.selectedSource" size="small" @change="handleSearch">
-          <el-radio-button value="all">全部来源</el-radio-button>
-          <el-radio-button value="fling">FLiNG 官方源</el-radio-button>
+          <el-radio-button value="all">{{ t('search.allSources') }}</el-radio-button>
+          <el-radio-button value="fling">{{ t('search.flingSource') }}</el-radio-button>
         </el-radio-group>
       </div>
     </div>
@@ -58,24 +58,24 @@
         >
           <div class="result-thumb">
             <img :src="item.cover_url || defaultThumb" :alt="item.game_name_en" />
-            <el-tag v-if="item.is_downloaded" type="success" size="small" class="dl-tag">已下载</el-tag>
-            <el-tag v-else-if="item.is_online_only" type="info" size="small" class="dl-tag">在线源</el-tag>
+            <el-tag v-if="item.is_downloaded" type="success" size="small" class="dl-tag">{{ t('search.downloaded') }}</el-tag>
+            <el-tag v-else-if="item.is_online_only" type="info" size="small" class="dl-tag">{{ t('home.tagOnline') }}</el-tag>
           </div>
           <div class="result-body">
             <div class="result-name-cn">{{ item.game_name_cn || item.game_name_en }}</div>
             <div class="result-name-en">{{ item.game_name_en }}</div>
             <div class="result-meta">
               <span class="source-pill">{{ item.source_id.toUpperCase() }}</span>
-              <span class="score-tag">匹配度 {{ Math.min(100, Math.round(item.score)) }}%</span>
+              <span class="score-tag">{{ t('search.matchScore', { score: Math.min(100, Math.round(item.score)) }) }}</span>
             </div>
           </div>
         </div>
       </div>
 
       <div v-else-if="!store.searching && store.hasSearched" class="empty-state">
-        <el-empty description="未检索到相关修改器资源">
+        <el-empty :description="t('search.emptyTitle')">
           <template #extra>
-            <p class="empty-tip">提示：支持输入中文别名（如“老头环”）、拼音首字母（如“sbpk”）或英文全称检索。</p>
+            <p class="empty-tip">{{ t('search.emptyTip') }}</p>
           </template>
         </el-empty>
       </div>
@@ -84,7 +84,7 @@
     <!-- Detail Drawer -->
     <el-drawer
       v-model="store.drawerVisible"
-      title="修改器详情与版本列表"
+      :title="t('search.drawerTitle')"
       size="480px"
       class="detail-drawer"
     >
@@ -100,7 +100,7 @@
         <el-divider />
 
         <!-- Versions List -->
-        <div class="section-sub">可下载版本列表</div>
+        <div class="section-sub">{{ t('search.versionList') }}</div>
         <div v-if="store.detailVersions.length > 0" class="versions-list">
           <div
             v-for="v in store.detailVersions"
@@ -109,7 +109,7 @@
           >
             <div class="version-name">{{ v.version_name }}</div>
             <div class="version-sub">
-              <span>文件: {{ v.file_name }}</span>
+              <span>{{ v.file_name }}</span>
             </div>
             <div class="version-action">
               <el-button
@@ -118,7 +118,7 @@
                 size="small"
                 disabled
               >
-                已下载 (本地就绪)
+                {{ t('search.downloaded') }}
               </el-button>
               <el-button
                 v-else
@@ -127,16 +127,16 @@
                 :loading="store.downloadingVerID === v.id"
                 @click="store.downloadVersion(v)"
               >
-                <el-icon><Download /></el-icon> 客户端下载
+                <el-icon><Download /></el-icon> {{ t('search.downloadBtn') }}
               </el-button>
             </div>
           </div>
         </div>
-        <div v-else class="text-gray text-sm">暂无具体版本列表</div>
+        <div v-else class="text-gray text-sm">{{ t('search.noFeatures') }}</div>
 
         <!-- Features Cheats List -->
         <div v-if="store.detailVersions.length > 0 && store.detailVersions[0]?.features_text" class="mt-4">
-          <div class="section-sub">修改器快捷键与功能项</div>
+          <div class="section-sub">{{ t('search.featuresList') }}</div>
           <pre class="cheats-box">{{ store.detailVersions[0]?.features_text }}</pre>
         </div>
       </div>
@@ -149,6 +149,7 @@ import { onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { Search, Download } from '@element-plus/icons-vue'
 import { useSearchStore } from '../stores/searchStore'
+import { t } from '../i18n'
 
 defineOptions({ name: 'SearchView' })
 
