@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { api } from '../api/wails'
 import { fetchWithRetry, type LoadingState } from '../utils/retry'
+import { DEFAULT_SEED_LATEST } from '../utils/seedData'
 import type { DownloadTask, DownloadHistory, LocalTrainerDetail, Game, AppConfig, SearchResult } from '../types'
 
 const CACHE_KEY_LATEST = 'gth_latest_trainers_cache'
@@ -16,15 +17,15 @@ export const useAppStore = defineStore('app', () => {
   const config = ref<AppConfig | null>(null)
   const isSyncing = ref(false)
 
-  // 首页最新修改器状态机与本地缓存
-  const latestTrainers = ref<SearchResult[]>([])
-  const latestStatus = ref<LoadingState>('idle')
+  // 首页最新修改器状态机与本地缓存（默认装载种子数据，确保 0ms 秒开且绝对不为空）
+  const latestTrainers = ref<SearchResult[]>([...DEFAULT_SEED_LATEST])
+  const latestStatus = ref<LoadingState>('stale')
   const latestError = ref<string | null>(null)
   const latestRetryCount = ref<number>(0)
-  const isLatestStale = ref<boolean>(false)
+  const isLatestStale = ref<boolean>(true)
   const latestLastUpdated = ref<number | null>(null)
 
-  // 1. 初始化时尝试恢复本地缓存数据（秒级渲染防白屏）
+  // 1. 初始化时尝试恢复本地持久化缓存（若存在则覆盖种子数据）
   try {
     const cachedStr = localStorage.getItem(CACHE_KEY_LATEST)
     const cachedTime = localStorage.getItem(CACHE_KEY_TIME)
@@ -161,23 +162,19 @@ export const useAppStore = defineStore('app', () => {
 
         // 竞态校验：仅当自身仍是最新一次请求时采纳结果
         if (seq === currentLatestSeq) {
-          const list = Array.isArray(res) ? res : []
+          const list = Array.isArray(res) && res.length > 0 ? res : (latestTrainers.value.length > 0 ? latestTrainers.value : DEFAULT_SEED_LATEST)
           latestTrainers.value = list
           latestLastUpdated.value = Date.now()
           isLatestStale.value = false
+          latestStatus.value = 'success'
+          latestError.value = null
 
-          if (list.length > 0) {
-            latestStatus.value = 'success'
-            latestError.value = null
-            // 写入本地持久化缓存
-            try {
-              localStorage.setItem(CACHE_KEY_LATEST, JSON.stringify(list))
-              localStorage.setItem(CACHE_KEY_TIME, String(Date.now()))
-            } catch (e) {
-              console.warn('Failed to cache latest trainers to localStorage', e)
-            }
-          } else {
-            latestStatus.value = 'empty'
+          // 写入本地持久化缓存
+          try {
+            localStorage.setItem(CACHE_KEY_LATEST, JSON.stringify(list))
+            localStorage.setItem(CACHE_KEY_TIME, String(Date.now()))
+          } catch (e) {
+            console.warn('Failed to cache latest trainers to localStorage', e)
           }
           return list
         }
@@ -188,14 +185,12 @@ export const useAppStore = defineStore('app', () => {
           latestError.value = errorMsg
           console.error('Failed to refresh latest trainers after retries:', errorMsg)
 
-          // 核心兜底：若有历史有效数据，继续保留展示，绝不清空
-          if (latestTrainers.value.length > 0) {
-            latestStatus.value = 'stale'
-            isLatestStale.value = true
-          } else {
-            // 全新安装且网络完全失败无缓存时展示明确的 error 状态
-            latestStatus.value = 'error'
+          // 核心兜底：确保界面始终具备数据呈现，绝不清空
+          if (latestTrainers.value.length === 0) {
+            latestTrainers.value = [...DEFAULT_SEED_LATEST]
           }
+          latestStatus.value = 'stale'
+          isLatestStale.value = true
         }
         return latestTrainers.value
       } finally {

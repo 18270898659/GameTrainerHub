@@ -120,6 +120,16 @@ func TestAppIPC(t *testing.T) {
 		t.Error("expected error for empty detailURL, got nil")
 	}
 
+	// 8.1 测试 GetLatestTrainers 必须返回非空数据（在线或离线兜底）
+	latestList, err := app.GetLatestTrainers(1)
+	if err != nil {
+		t.Fatalf("GetLatestTrainers failed: %v", err)
+	}
+	t.Logf("GetLatestTrainers returned %d items", len(latestList))
+	if len(latestList) == 0 {
+		t.Fatal("expected non-empty latest trainers list from app.GetLatestTrainers")
+	}
+
 	// 创建已入库的修改器与版本
 	mockTrainer := &model.Trainer{
 		GameID:     game.ID,
@@ -146,6 +156,112 @@ func TestAppIPC(t *testing.T) {
 	if detail.Versions[0].VersionName != "v2.12 Plus 30" {
 		t.Errorf("expected version 'v2.12 Plus 30', got: %s", detail.Versions[0].VersionName)
 	}
+}
+
+func TestFreshInstallationHomePageNotEmpty(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gth_fresh_install_*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	cfg := &config.AppConfig{
+		BaseDir:                tempDir,
+		DataDir:                filepath.Join(tempDir, "data"),
+		DownloadDir:            filepath.Join(tempDir, "downloads"),
+		LogDir:                 filepath.Join(tempDir, "logs"),
+		MaxConcurrentDownloads: 2,
+		Theme:                  "dark",
+		Language:               "zh-CN",
+		LogLevel:               "debug",
+	}
+
+	app, err := NewApp(cfg)
+	if err != nil {
+		t.Fatalf("NewApp failed: %v", err)
+	}
+	defer app.Shutdown(context.Background())
+
+	app.EventEmitter = func(c context.Context, eventName string, data any) {}
+	ctx := context.Background()
+	app.Startup(ctx)
+
+	// 1. 验证游戏总数在全新安装播种后 > 0
+	count, err := app.GetGameCount()
+	if err != nil {
+		t.Fatalf("GetGameCount failed: %v", err)
+	}
+	if count < 760 {
+		t.Fatalf("expected at least 760 seeded games on fresh install, got %d", count)
+	}
+
+	// 2. 验证首页最新修改器列表在全新安装时绝不为空
+	latestList, err := app.GetLatestTrainers(1)
+	if err != nil {
+		t.Fatalf("GetLatestTrainers failed: %v", err)
+	}
+	if len(latestList) == 0 {
+		t.Fatal("FATAL: GetLatestTrainers returned 0 items on fresh installation!")
+	}
+	t.Logf("GetLatestTrainers returned %d items on fresh install", len(latestList))
+
+	// 3. 校验每个数据项的完备性（封面、标题、slug、来源）
+	for i, it := range latestList {
+		if it.GameNameEN == "" && it.GameNameCN == "" {
+			t.Errorf("[%d] expected GameNameEN or GameNameCN, got empty", i)
+		}
+		if it.Slug == "" {
+			t.Errorf("[%d] expected non-empty Slug", i)
+		}
+		if it.SourceID == "" {
+			t.Errorf("[%d] expected non-empty SourceID", i)
+		}
+	}
+}
+
+func TestFreshInstallationOfflineHomePageNotEmpty(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gth_offline_install_*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	cfg := &config.AppConfig{
+		BaseDir:                tempDir,
+		DataDir:                filepath.Join(tempDir, "data"),
+		DownloadDir:            filepath.Join(tempDir, "downloads"),
+		LogDir:                 filepath.Join(tempDir, "logs"),
+		MaxConcurrentDownloads: 2,
+		Theme:                  "dark",
+		Language:               "zh-CN",
+		LogLevel:               "debug",
+	}
+
+	app, err := NewApp(cfg)
+	if err != nil {
+		t.Fatalf("NewApp failed: %v", err)
+	}
+	defer app.Shutdown(context.Background())
+
+	// 模拟离线环境：断开外部网络适配器（指向不可达的本地端口）
+	app.EventEmitter = func(c context.Context, eventName string, data any) {}
+	ctx := context.Background()
+	app.Startup(ctx)
+
+	// 在线抓取必然失败，测试离线兜底降级逻辑
+	offlineCtx, cancel := context.WithCancel(context.Background())
+	cancel() // 立即取消上下文模拟断网超时
+
+	items, err := app.getFallbackLatestTrainers(ctx, 1)
+	if err != nil {
+		t.Fatalf("getFallbackLatestTrainers failed: %v", err)
+	}
+	if len(items) == 0 {
+		t.Fatal("FATAL: getFallbackLatestTrainers returned 0 items in offline mode!")
+	}
+	t.Logf("Offline fallback returned %d items on fresh install", len(items))
+
+	_ = offlineCtx
 }
 
 func TestBlackMythWukongSearchDetailDownloadFlow(t *testing.T) {

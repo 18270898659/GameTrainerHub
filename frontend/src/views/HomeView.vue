@@ -150,14 +150,16 @@
 
     <!-- Quick Stats -->
     <div class="stats-grid">
-      <div v-if="statsLoading && !indexedGamesCount" v-for="i in 4" :key="i" class="stat-card">
-        <el-skeleton animated>
-          <template #template>
-            <el-skeleton-item variant="h1" style="width: 50%; height: 28px; margin-bottom: 8px;" />
-            <el-skeleton-item variant="text" style="width: 70%; height: 14px;" />
-          </template>
-        </el-skeleton>
-      </div>
+      <template v-if="statsLoading && !indexedGamesCount">
+        <div v-for="i in 4" :key="i" class="stat-card">
+          <el-skeleton animated>
+            <template #template>
+              <el-skeleton-item variant="h1" style="width: 50%; height: 28px; margin-bottom: 8px;" />
+              <el-skeleton-item variant="text" style="width: 70%; height: 14px;" />
+            </template>
+          </el-skeleton>
+        </div>
+      </template>
       <template v-else>
         <div class="stat-card">
           <div class="stat-val">{{ indexedGamesCount }}</div>
@@ -363,13 +365,17 @@
       <div v-else-if="store.latestTrainers.length > 0" class="trainers-grid">
         <div
           v-for="item in store.latestTrainers"
-          :key="item.slug"
+          :key="item.slug || item.game_id || item.trainer_title"
           class="trainer-card"
           @click="goToDetail(item)"
         >
           <div class="card-thumb">
-            <img :src="item.cover_url || DEFAULT_GAME_COVER" :alt="item.game_name_en" />
-            <div class="badge-source">{{ item.source_id.toUpperCase() }}</div>
+            <img
+              :src="item.cover_url || DEFAULT_GAME_COVER"
+              :alt="item.game_name_en"
+              @error="($event.target as HTMLImageElement).src = DEFAULT_GAME_COVER"
+            />
+            <div class="badge-source">{{ (item.source_id || 'FLiNG').toUpperCase() }}</div>
             <!-- 收藏切换按钮（右上角） -->
             <button
               class="star-btn"

@@ -120,3 +120,23 @@ func TestSyncServiceCatalogAndLatest(t *testing.T) {
 	}
 }
 
+func TestSeedAndFallback(t *testing.T) {
+	latest, err := LoadSeedLatest()
+	if err != nil {
+		t.Fatalf("LoadSeedLatest failed: %v", err)
+	}
+	t.Logf("LoadSeedLatest returned %d items", len(latest))
+	if len(latest) == 0 {
+		t.Fatal("expected non-empty seed latest")
+	}
+
+	catalog, err := LoadSeedCatalog()
+	if err != nil {
+		t.Fatalf("LoadSeedCatalog failed: %v", err)
+	}
+	t.Logf("LoadSeedCatalog returned %d items", len(catalog))
+	if len(catalog) < 760 {
+		t.Fatalf("expected >= 760 items, got %d", len(catalog))
+	}
+}
+

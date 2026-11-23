@@ -15,6 +15,7 @@ import type {
   LogEntry,
   UpdateCheckResult
 } from '../types'
+import { DEFAULT_SEED_LATEST } from '../utils/seedData'
 
 // 声明全局 window 上的 Wails 桥接对象
 declare global {
@@ -85,19 +86,42 @@ declare global {
 
 const isWails = () => typeof window !== 'undefined' && !!window.go?.app?.App
 
+/**
+ * 等待 Wails 运行时注入就绪，避免组件早于 IPC 绑定加载导致返回空
+ */
+async function waitForWails(timeoutMs = 2000): Promise<boolean> {
+  if (isWails()) return true
+  const start = Date.now()
+  while (Date.now() - start < timeoutMs) {
+    if (isWails()) return true
+    await new Promise((resolve) => setTimeout(resolve, 30))
+  }
+  return isWails()
+}
+
 export const api = {
   async search(filter: SearchFilter): Promise<SearchResult[]> {
+    await waitForWails(1000)
     if (isWails()) {
       return window.go!.app!.App!.Search(filter)
     }
-    return []
+    const q = (filter.query || '').trim().toLowerCase()
+    if (!q) return DEFAULT_SEED_LATEST
+    return DEFAULT_SEED_LATEST.filter(
+      (it) => it.game_name_en.toLowerCase().includes(q) || it.game_name_cn.includes(q)
+    )
   },
 
   async getSearchSuggestions(query: string): Promise<SearchResult[]> {
+    await waitForWails(1000)
     if (isWails()) {
       return window.go!.app!.App!.GetSearchSuggestions(query)
     }
-    return []
+    const q = (query || '').trim().toLowerCase()
+    if (!q) return DEFAULT_SEED_LATEST.slice(0, 6)
+    return DEFAULT_SEED_LATEST.filter(
+      (it) => it.game_name_en.toLowerCase().includes(q) || it.game_name_cn.includes(q)
+    ).slice(0, 6)
   },
 
   async getTrainerDetail(detailURL: string): Promise<{ trainer: Trainer; versions: TrainerVersion[] }> {
@@ -174,15 +198,31 @@ export const api = {
   },
 
   async getLatestTrainers(page: number = 1): Promise<SearchResult[]> {
+    await waitForWails(2000)
     if (isWails()) {
-      return window.go!.app!.App!.GetLatestTrainers(page)
+      try {
+        const res = await window.go!.app!.App!.GetLatestTrainers(page)
+        if (Array.isArray(res) && res.length > 0) {
+          return res
+        }
+      } catch (err) {
+        console.warn('Wails GetLatestTrainers failed, fallback to seed data', err)
+      }
     }
-    return []
+    return DEFAULT_SEED_LATEST
   },
 
   async getGameCount(): Promise<number> {
+    await waitForWails(1500)
     if (isWails()) {
-      return window.go!.app!.App!.GetGameCount()
+      try {
+        const count = await window.go!.app!.App!.GetGameCount()
+        if (count && count > 0) {
+          return count
+        }
+      } catch (err) {
+        console.warn('Wails GetGameCount failed', err)
+      }
     }
     return 767
   },
