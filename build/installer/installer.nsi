@@ -1,4 +1,4 @@
-﻿; ==============================================================================
+; ==============================================================================
 ; Game Trainer Hub - NSIS Installation Script
 ; ==============================================================================
 
@@ -74,19 +74,48 @@ ShowUnInstDetails show
 ; ------------------------------------------------------------------------------
 Function CheckRunningProcess
   ${If} ${Silent}
-    nsExec::Exec 'cmd /c taskkill /F /T /IM "${APP_EXE}"'
+    ${DisableX64FSRedirection}
+    nsExec::Exec 'taskkill.exe /F /T /IM "${APP_EXE}"'
+    nsExec::Exec 'powershell.exe -NoProfile -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
+    ${EnableX64FSRedirection}
     Sleep 1000
     Return
   ${EndIf}
+
   loop:
-    nsExec::ExecToStack 'cmd /c tasklist /NH /FI "IMAGENAME eq ${APP_EXE}" | findstr /I "${APP_EXE}"'
+    StrCpy $R0 0  ; $R0 = 1 if process is running
+
+    ; --- Method 1: 64-bit tasklist check (bypassing WOW64 redirection) ---
+    ${DisableX64FSRedirection}
+    nsExec::ExecToStack 'cmd.exe /c tasklist /NH /FI "IMAGENAME eq ${APP_EXE}" | findstr /I "${APP_EXE}"'
     Pop $0
     Pop $1
+    ${EnableX64FSRedirection}
     ${If} $0 == 0
+      StrCpy $R0 1
+    ${EndIf}
+
+    ; --- Method 2: Fallback via 64-bit PowerShell Get-Process ---
+    ${If} $R0 == 0
+      ${DisableX64FSRedirection}
+      nsExec::ExecToStack 'powershell.exe -NoProfile -Command "if (Get-Process GameTrainerHub -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"'
+      Pop $0
+      Pop $1
+      ${EnableX64FSRedirection}
+      ${If} $0 == 0
+        StrCpy $R0 1
+      ${EndIf}
+    ${EndIf}
+
+    ; If running, prompt user
+    ${If} $R0 == 1
       MessageBox MB_YESNO|MB_ICONQUESTION "检测到 ${PRODUCT_NAME} 正在运行。$\r$\n$\r$\n原有程序已打开，是否关闭？$\r$\n$\r$\n点击【是】将关闭程序并继续安装。$\r$\n点击【否】将退出安装程序。" IDYES kill_and_continue IDNO abort_install
       kill_and_continue:
-        nsExec::Exec 'cmd /c taskkill /F /T /IM "${APP_EXE}"'
-        Sleep 1000
+        ${DisableX64FSRedirection}
+        nsExec::Exec 'taskkill.exe /F /T /IM "${APP_EXE}"'
+        nsExec::Exec 'powershell.exe -NoProfile -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
+        ${EnableX64FSRedirection}
+        Sleep 1500
         Goto loop
       abort_install:
         Abort
@@ -95,19 +124,47 @@ FunctionEnd
 
 Function un.CheckRunningProcess
   ${If} ${Silent}
-    nsExec::Exec 'cmd /c taskkill /F /T /IM "${APP_EXE}"'
+    ${DisableX64FSRedirection}
+    nsExec::Exec 'taskkill.exe /F /T /IM "${APP_EXE}"'
+    nsExec::Exec 'powershell.exe -NoProfile -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
+    ${EnableX64FSRedirection}
     Sleep 1000
     Return
   ${EndIf}
+
   un_loop:
-    nsExec::ExecToStack 'cmd /c tasklist /NH /FI "IMAGENAME eq ${APP_EXE}" | findstr /I "${APP_EXE}"'
+    StrCpy $R0 0
+
+    ; --- Method 1: 64-bit tasklist check ---
+    ${DisableX64FSRedirection}
+    nsExec::ExecToStack 'cmd.exe /c tasklist /NH /FI "IMAGENAME eq ${APP_EXE}" | findstr /I "${APP_EXE}"'
     Pop $0
     Pop $1
+    ${EnableX64FSRedirection}
     ${If} $0 == 0
+      StrCpy $R0 1
+    ${EndIf}
+
+    ; --- Method 2: Fallback via 64-bit PowerShell Get-Process ---
+    ${If} $R0 == 0
+      ${DisableX64FSRedirection}
+      nsExec::ExecToStack 'powershell.exe -NoProfile -Command "if (Get-Process GameTrainerHub -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"'
+      Pop $0
+      Pop $1
+      ${EnableX64FSRedirection}
+      ${If} $0 == 0
+        StrCpy $R0 1
+      ${EndIf}
+    ${EndIf}
+
+    ${If} $R0 == 1
       MessageBox MB_YESNO|MB_ICONQUESTION "检测到 ${PRODUCT_NAME} 正在运行。$\r$\n$\r$\n原有程序已打开，是否关闭？$\r$\n$\r$\n点击【是】将关闭程序并继续卸载。$\r$\n点击【否】将退出卸载程序。" IDYES un_kill_and_continue IDNO un_abort_uninstall
       un_kill_and_continue:
-        nsExec::Exec 'cmd /c taskkill /F /T /IM "${APP_EXE}"'
-        Sleep 1000
+        ${DisableX64FSRedirection}
+        nsExec::Exec 'taskkill.exe /F /T /IM "${APP_EXE}"'
+        nsExec::Exec 'powershell.exe -NoProfile -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
+        ${EnableX64FSRedirection}
+        Sleep 1500
         Goto un_loop
       un_abort_uninstall:
         Abort
@@ -121,18 +178,23 @@ Function CheckWebView2Runtime
   ${If} ${Silent}
     Return
   ${EndIf}
-  ; Check 64-bit machine registry
-  ReadRegStr $0 HKLM "SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-94D0-44AC-A0C1-0452F34307F1}" "pv"
+  ; Check 64-bit machine registry (official Evergreen GUID: {F3017226-FE2A-4295-8BDF-00C3A9A7E4C5})
+  ReadRegStr $0 HKLM "SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" "pv"
   ${If} $0 != ""
     Return
   ${EndIf}
   ; Check standard machine registry
-  ReadRegStr $0 HKLM "SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-94D0-44AC-A0C1-0452F34307F1}" "pv"
+  ReadRegStr $0 HKLM "SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" "pv"
   ${If} $0 != ""
     Return
   ${EndIf}
   ; Check current user registry
-  ReadRegStr $0 HKCU "SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-94D0-44AC-A0C1-0452F34307F1}" "pv"
+  ReadRegStr $0 HKCU "SOFTWARE\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}" "pv"
+  ${If} $0 != ""
+    Return
+  ${EndIf}
+  ; Check alternative GUID
+  ReadRegStr $0 HKLM "SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-94D0-44AC-A0C1-0452F34307F1}" "pv"
   ${If} $0 != ""
     Return
   ${EndIf}
