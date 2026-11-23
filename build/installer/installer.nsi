@@ -1,4 +1,4 @@
-; ==============================================================================
+﻿; ==============================================================================
 ; Game Trainer Hub - NSIS Installation Script
 ; ==============================================================================
 
@@ -75,8 +75,8 @@ ShowUnInstDetails show
 Function CheckRunningProcess
   ${If} ${Silent}
     ${DisableX64FSRedirection}
-    nsExec::Exec 'taskkill.exe /F /T /IM "${APP_EXE}"'
-    nsExec::Exec 'powershell.exe -NoProfile -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
+    nsExec::Exec 'cmd.exe /c taskkill.exe /F /T /IM "${APP_EXE}"'
+    nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
     ${EnableX64FSRedirection}
     Sleep 1000
     Return
@@ -112,8 +112,8 @@ Function CheckRunningProcess
       MessageBox MB_YESNO|MB_ICONQUESTION "检测到 ${PRODUCT_NAME} 正在运行。$\r$\n$\r$\n原有程序已打开，是否关闭？$\r$\n$\r$\n点击【是】将关闭程序并继续安装。$\r$\n点击【否】将退出安装程序。" IDYES kill_and_continue IDNO abort_install
       kill_and_continue:
         ${DisableX64FSRedirection}
-        nsExec::Exec 'taskkill.exe /F /T /IM "${APP_EXE}"'
-        nsExec::Exec 'powershell.exe -NoProfile -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
+        nsExec::Exec 'cmd.exe /c taskkill.exe /F /T /IM "${APP_EXE}"'
+        nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
         ${EnableX64FSRedirection}
         Sleep 1500
         Goto loop
@@ -125,8 +125,8 @@ FunctionEnd
 Function un.CheckRunningProcess
   ${If} ${Silent}
     ${DisableX64FSRedirection}
-    nsExec::Exec 'taskkill.exe /F /T /IM "${APP_EXE}"'
-    nsExec::Exec 'powershell.exe -NoProfile -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
+    nsExec::Exec 'cmd.exe /c taskkill.exe /F /T /IM "${APP_EXE}"'
+    nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
     ${EnableX64FSRedirection}
     Sleep 1000
     Return
@@ -161,8 +161,8 @@ Function un.CheckRunningProcess
       MessageBox MB_YESNO|MB_ICONQUESTION "检测到 ${PRODUCT_NAME} 正在运行。$\r$\n$\r$\n原有程序已打开，是否关闭？$\r$\n$\r$\n点击【是】将关闭程序并继续卸载。$\r$\n点击【否】将退出卸载程序。" IDYES un_kill_and_continue IDNO un_abort_uninstall
       un_kill_and_continue:
         ${DisableX64FSRedirection}
-        nsExec::Exec 'taskkill.exe /F /T /IM "${APP_EXE}"'
-        nsExec::Exec 'powershell.exe -NoProfile -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
+        nsExec::Exec 'cmd.exe /c taskkill.exe /F /T /IM "${APP_EXE}"'
+        nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
         ${EnableX64FSRedirection}
         Sleep 1500
         Goto un_loop
@@ -245,6 +245,22 @@ Section "主程序核心文件 (必选)" SecCore
   SetOutPath "$INSTDIR"
   SetOverwrite on
 
+  ; Ensure target exe is not locked before overwriting
+  ${If} ${FileExists} "$INSTDIR\${APP_EXE}"
+    ClearErrors
+    Delete "$INSTDIR\${APP_EXE}"
+    ${If} ${Errors}
+      ; If delete failed due to file lock, force kill and wait
+      ${DisableX64FSRedirection}
+      nsExec::Exec 'cmd.exe /c taskkill.exe /F /T /IM "${APP_EXE}"'
+      nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
+      ${EnableX64FSRedirection}
+      Sleep 1500
+      ClearErrors
+      Delete "$INSTDIR\${APP_EXE}"
+    ${EndIf}
+  ${EndIf}
+
   ; Install application binary and assets
   File "..\bin\GameTrainerHub.exe"
   File "NOTICE.txt"
@@ -304,7 +320,19 @@ Section "Uninstall"
   Call un.CheckRunningProcess
 
   ; 1. Delete installed files
-  Delete "$INSTDIR\${APP_EXE}"
+  ${If} ${FileExists} "$INSTDIR\${APP_EXE}"
+    ClearErrors
+    Delete "$INSTDIR\${APP_EXE}"
+    ${If} ${Errors}
+      ${DisableX64FSRedirection}
+      nsExec::Exec 'cmd.exe /c taskkill.exe /F /T /IM "${APP_EXE}"'
+      nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
+      ${EnableX64FSRedirection}
+      Sleep 1500
+      ClearErrors
+      Delete "$INSTDIR\${APP_EXE}"
+    ${EndIf}
+  ${EndIf}
   Delete "$INSTDIR\NOTICE.txt"
   Delete "$INSTDIR\version.json"
   Delete "$INSTDIR\icon.ico"
