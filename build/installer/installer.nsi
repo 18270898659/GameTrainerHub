@@ -1,4 +1,4 @@
-; ==============================================================================
+﻿; ==============================================================================
 ; Game Trainer Hub - NSIS Installation Script
 ; ==============================================================================
 
@@ -74,7 +74,8 @@ ShowUnInstDetails show
 ; ------------------------------------------------------------------------------
 Function CheckRunningProcess
   ${If} ${Silent}
-    nsExec::Exec 'cmd /c taskkill /F /IM ${APP_EXE}'
+    nsExec::Exec 'cmd /c taskkill /F /T /IM "${APP_EXE}"'
+    Sleep 1000
     Return
   ${EndIf}
   loop:
@@ -82,17 +83,20 @@ Function CheckRunningProcess
     Pop $0
     Pop $1
     ${If} $0 == 0
-      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "检测到 ${PRODUCT_NAME} 正在运行。$\r$\n$\r$\n请在继续安装/升级前关闭程序，然后点击【重试】。$\r$\n或点击【取消】退出安装。" IDRETRY retry IDCANCEL cancel
-      retry:
+      MessageBox MB_YESNO|MB_ICONQUESTION "检测到 ${PRODUCT_NAME} 正在运行。$\r$\n$\r$\n原有程序已打开，是否关闭？$\r$\n$\r$\n点击【是】将关闭程序并继续安装。$\r$\n点击【否】将退出安装程序。" IDYES kill_and_continue IDNO abort_install
+      kill_and_continue:
+        nsExec::Exec 'cmd /c taskkill /F /T /IM "${APP_EXE}"'
+        Sleep 1000
         Goto loop
-      cancel:
+      abort_install:
         Abort
     ${EndIf}
 FunctionEnd
 
 Function un.CheckRunningProcess
   ${If} ${Silent}
-    nsExec::Exec 'cmd /c taskkill /F /IM ${APP_EXE}'
+    nsExec::Exec 'cmd /c taskkill /F /T /IM "${APP_EXE}"'
+    Sleep 1000
     Return
   ${EndIf}
   un_loop:
@@ -100,10 +104,12 @@ Function un.CheckRunningProcess
     Pop $0
     Pop $1
     ${If} $0 == 0
-      MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "检测到 ${PRODUCT_NAME} 正在运行。$\r$\n$\r$\n请先关闭程序，然后点击【重试】。$\r$\n或点击【取消】退出卸载。" IDRETRY un_retry IDCANCEL un_cancel
-      un_retry:
+      MessageBox MB_YESNO|MB_ICONQUESTION "检测到 ${PRODUCT_NAME} 正在运行。$\r$\n$\r$\n原有程序已打开，是否关闭？$\r$\n$\r$\n点击【是】将关闭程序并继续卸载。$\r$\n点击【否】将退出卸载程序。" IDYES un_kill_and_continue IDNO un_abort_uninstall
+      un_kill_and_continue:
+        nsExec::Exec 'cmd /c taskkill /F /T /IM "${APP_EXE}"'
+        Sleep 1000
         Goto un_loop
-      un_cancel:
+      un_abort_uninstall:
         Abort
     ${EndIf}
 FunctionEnd
@@ -171,6 +177,9 @@ FunctionEnd
 ; ------------------------------------------------------------------------------
 Section "主程序核心文件 (必选)" SecCore
   SectionIn RO
+  ; Double-check running process before extracting files
+  Call CheckRunningProcess
+
   SetOutPath "$INSTDIR"
   SetOverwrite on
 
@@ -229,6 +238,9 @@ SectionEnd
 ; Uninstaller Section
 ; ------------------------------------------------------------------------------
 Section "Uninstall"
+  ; Double-check running process before deleting files
+  Call un.CheckRunningProcess
+
   ; 1. Delete installed files
   Delete "$INSTDIR\${APP_EXE}"
   Delete "$INSTDIR\NOTICE.txt"

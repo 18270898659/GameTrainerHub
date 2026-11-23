@@ -11,7 +11,7 @@ cd /d "%~dp0"
 
 :: 1. Safety check: close running instances
 echo [1/6] Checking for running instances...
-taskkill /F /IM GameTrainerHub.exe >nul 2>nul
+taskkill /F /T /IM GameTrainerHub.exe >nul 2>nul
 
 :: 2. Ensure output directory exists
 if not exist "bin" mkdir "bin"
