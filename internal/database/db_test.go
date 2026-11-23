@@ -246,3 +246,34 @@ func TestDatabaseConcurrentStress(t *testing.T) {
 		t.Fatalf("post-stress integrity check failed: %v", err)
 	}
 }
+
+func TestVerifySeededProductionDB(t *testing.T) {
+	appData := os.Getenv("APPDATA")
+	dbPath := filepath.Join(appData, "GameTrainerHub", "data", "trainers.db")
+	if _, err := os.Stat(dbPath); os.IsNotExist(err) {
+		t.Skip("production db not found")
+	}
+
+	db, err := Open(dbPath)
+	if err != nil {
+		t.Fatalf("Open production db failed: %v", err)
+	}
+	defer db.Close()
+
+	var gameCount, trainerCount, ftsCount int
+	_ = db.QueryRow("SELECT COUNT(id) FROM games").Scan(&gameCount)
+	_ = db.QueryRow("SELECT COUNT(id) FROM trainers").Scan(&trainerCount)
+	_ = db.QueryRow("SELECT COUNT(rowid) FROM game_search_fts").Scan(&ftsCount)
+
+	t.Logf("=== PRODUCTION DB VERIFICATION ===")
+	t.Logf("Total games in DB: %d", gameCount)
+	t.Logf("Total trainers in DB: %d", trainerCount)
+	t.Logf("Total FTS5 indexed: %d", ftsCount)
+
+	if gameCount != 767 {
+		t.Errorf("expected 767 games, got %d", gameCount)
+	}
+	if trainerCount != 767 {
+		t.Errorf("expected 767 trainers, got %d", trainerCount)
+	}
+}

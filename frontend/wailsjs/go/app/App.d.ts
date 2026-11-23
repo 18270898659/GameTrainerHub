@@ -34,6 +34,8 @@ export function GetConfig():Promise<config.AppConfig>;
 
 export function GetContext():Promise<context.Context>;
 
+export function GetGameCount():Promise<number>;
+
 export function GetGameDetail(arg1:number):Promise<model.Trainer>;
 
 export function GetLatestTrainers(arg1:number):Promise<Array<model.SearchResult>>;

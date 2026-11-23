@@ -57,10 +57,16 @@ func TestAppIPC(t *testing.T) {
 		t.Errorf("expected theme light after save, got %s", app.GetConfig().Theme)
 	}
 
-	// 2. 插入测试游戏以验证相关 IPC 方法
-	game := &model.Game{Slug: "cyberpunk-2077", NameEN: "Cyberpunk 2077", NameCN: "赛博朋克2077"}
-	_ = app.gameRepo.Create(ctx, game)
-	_ = app.ftsRepo.IndexGame(ctx, game.ID, game.NameEN, game.NameCN, "2077", "saibopengke", "sbpk")
+	// 2. 获取或初始化测试游戏以验证相关 IPC 方法
+	game, _ := app.gameRepo.GetBySlug(ctx, "cyberpunk-2077")
+	if game == nil {
+		game = &model.Game{Slug: "cyberpunk-2077", NameEN: "Cyberpunk 2077", NameCN: "赛博朋克2077"}
+		_ = app.gameRepo.Create(ctx, game)
+		_ = app.ftsRepo.IndexGame(ctx, game.ID, game.NameEN, game.NameCN, "2077", "saibopengke", "sbpk")
+	} else if game.NameCN == "" {
+		game.NameCN = "赛博朋克2077"
+		_ = app.gameRepo.Update(ctx, game)
+	}
 
 	// 3. 搜索测试
 	results, err := app.Search(model.SearchFilter{Query: "赛博朋克", LocalOnly: true})

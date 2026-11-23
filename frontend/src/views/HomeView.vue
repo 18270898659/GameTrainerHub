@@ -151,7 +151,7 @@
     <!-- Quick Stats -->
     <div class="stats-grid">
       <div class="stat-card">
-        <div class="stat-val">767+</div>
+        <div class="stat-val">{{ indexedGamesCount }}</div>
         <div class="stat-label">{{ t('home.statsIndexedGames') }}</div>
       </div>
       <div class="stat-card">
@@ -297,6 +297,15 @@
           </div>
         </div>
       </div>
+
+      <!-- 弱网或初始化异常时的兜底空状态 -->
+      <div v-if="!loading && store.latestTrainers.length === 0" class="latest-empty-card">
+        <el-empty :description="t('home.noTrainers') || '暂未获取到修改器列表'">
+          <el-button type="primary" size="small" :loading="store.isSyncing" @click="triggerSync">
+            <el-icon><Refresh /></el-icon> {{ t('home.syncBtn') || '立即同步资源' }}
+          </el-button>
+        </el-empty>
+      </div>
     </div>
   </div>
 </template>
@@ -321,6 +330,7 @@ const searchBoxRef = ref<HTMLElement | null>(null)
 const searchInputRef = ref<any>(null)
 const heroQuery = ref('')
 const loading = ref(false)
+const indexedGamesCount = ref('767+')
 const recentGames = ref<Game[]>([])
 const recentTrainers = ref<LocalTrainerDetail[]>([])
 
@@ -334,13 +344,17 @@ let currentSeq = 0
 
 async function loadDashboardData() {
   try {
-    const [_, visited, recTrainers] = await Promise.all([
+    const [_, visited, recTrainers, count] = await Promise.all([
       store.refreshFavorites(),
       api.getRecentGames(6),
-      api.getRecentTrainers(6)
+      api.getRecentTrainers(6),
+      api.getGameCount()
     ])
     recentGames.value = visited || []
     recentTrainers.value = recTrainers || []
+    if (count && count > 0) {
+      indexedGamesCount.value = `${count}+`
+    }
   } catch (e) {
     console.warn('Dashboard data fetch failed', e)
   }
@@ -458,13 +472,16 @@ onMounted(async () => {
   document.addEventListener('click', handleClickOutside)
   searchStore.loadSearchHistory()
   loading.value = true
-  await Promise.all([
-    store.refreshLatest(),
-    store.refreshLocalTrainers(),
-    store.refreshDownloads(),
-    loadDashboardData()
-  ])
-  loading.value = false
+  try {
+    await Promise.all([
+      store.refreshLatest(),
+      store.refreshLocalTrainers(),
+      store.refreshDownloads(),
+      loadDashboardData()
+    ])
+  } finally {
+    loading.value = false
+  }
 })
 
 onUnmounted(() => {
@@ -474,12 +491,17 @@ onUnmounted(() => {
 
 onActivated(async () => {
   searchStore.loadSearchHistory()
-  await Promise.all([
-    store.refreshLatest(),
-    store.refreshLocalTrainers(),
-    store.refreshDownloads(),
-    loadDashboardData()
-  ])
+  loading.value = true
+  try {
+    await Promise.all([
+      store.refreshLatest(),
+      store.refreshLocalTrainers(),
+      store.refreshDownloads(),
+      loadDashboardData()
+    ])
+  } finally {
+    loading.value = false
+  }
 })
 
 async function toggleLatestFavorite(item: SearchResult) {
@@ -1000,6 +1022,15 @@ async function triggerSync() {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
   gap: 16px;
+}
+.latest-empty-card {
+  padding: 40px 20px;
+  background: var(--bg-card);
+  border: 1px dashed var(--border-color);
+  border-radius: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 .trainer-card {
   background: var(--bg-card);

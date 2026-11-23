@@ -2,10 +2,14 @@ package fling
 
 import (
 	"context"
+	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"GameTrainerHub/internal/model"
 	"GameTrainerHub/internal/source"
 )
 
@@ -201,4 +205,92 @@ func TestResolveDownloadBMW(t *testing.T) {
 	}
 	t.Logf("ResolveDownload completed in %v, finalURL: %s", dur, info.FinalURL)
 }
+
+func TestLiveGetLatest(t *testing.T) {
+	adapter := NewFlingAdapter(nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+
+	items, err := adapter.GetLatest(ctx, 1)
+	if err != nil {
+		t.Fatalf("GetLatest failed: %v", err)
+	}
+	t.Logf("GetLatest returned %d items", len(items))
+	for i, item := range items {
+		t.Logf("[%d] %s (Slug: %s, Cover: %s)", i, item.TrainerTitle, item.Slug, item.CoverURL)
+	}
+}
+
+func TestGenerateSeedData(t *testing.T) {
+	adapter := NewFlingAdapter(nil)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+
+	// 1. Fetch catalog
+	catalog, err := adapter.GetCatalog(ctx)
+	if err != nil {
+		t.Fatalf("GetCatalog failed: %v", err)
+	}
+	t.Logf("Fetched %d catalog items", len(catalog))
+
+	// 2. Fetch latest trainers (pages 1 to 3)
+	var latestItems []*model.SearchResult
+	for p := 1; p <= 3; p++ {
+		items, err := adapter.GetLatest(ctx, p)
+		if err == nil {
+			latestItems = append(latestItems, items...)
+		}
+	}
+	t.Logf("Fetched %d latest items", len(latestItems))
+
+	// 3. Save to seed files in internal/sync
+	type SeedItem struct {
+		Title      string `json:"title"`
+		GameNameEN string `json:"game_name_en"`
+		GameNameCN string `json:"game_name_cn,omitempty"`
+		Slug       string `json:"slug"`
+		DetailURL  string `json:"detail_url"`
+		ExternalID string `json:"external_id"`
+		CoverURL   string `json:"cover_url,omitempty"`
+	}
+
+	coverMap := make(map[string]string)
+	for _, it := range latestItems {
+		if it.CoverURL != "" {
+			coverMap[it.Slug] = it.CoverURL
+		}
+	}
+
+	var seeds []SeedItem
+	for _, it := range catalog {
+		nameEN := strings.TrimSuffix(it.Title, " Trainer")
+		slug := slugify(nameEN)
+		cover := coverMap[slug]
+		seeds = append(seeds, SeedItem{
+			Title:      it.Title,
+			GameNameEN: nameEN,
+			Slug:       slug,
+			DetailURL:  it.DetailURL,
+			ExternalID: it.ExternalID,
+			CoverURL:   cover,
+		})
+	}
+
+	catalogBytes, err := json.Marshal(seeds)
+	if err != nil {
+		t.Fatalf("json marshal seeds failed: %v", err)
+	}
+
+	latestBytes, err := json.Marshal(latestItems)
+	if err != nil {
+		t.Fatalf("json marshal latest failed: %v", err)
+	}
+
+	outDir := filepath.Join("..", "..", "sync")
+	_ = os.WriteFile(filepath.Join(outDir, "seed_catalog.json"), catalogBytes, 0644)
+	_ = os.WriteFile(filepath.Join(outDir, "seed_latest.json"), latestBytes, 0644)
+	t.Logf("Successfully written seed_catalog.json (%d bytes) and seed_latest.json (%d bytes)", len(catalogBytes), len(latestBytes))
+}
+
+
 

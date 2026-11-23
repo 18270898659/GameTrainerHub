@@ -58,6 +58,10 @@ export function GetContext() {
   return window['go']['app']['App']['GetContext']();
 }
 
+export function GetGameCount() {
+  return window['go']['app']['App']['GetGameCount']();
+}
+
 export function GetGameDetail(arg1) {
   return window['go']['app']['App']['GetGameDetail'](arg1);
 }

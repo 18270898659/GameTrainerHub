@@ -226,6 +226,16 @@ func (a *App) Startup(ctx context.Context) {
 	// 恢复上次异常退出的未完成任务
 	_ = a.dlManager.RecoverInterruptedTasks(ctx)
 
+	// 冷启动基准数据初始化：新设备安装后本地数据库尚无数据时，极速填充 760+ 游戏种子及全文索引
+	if count, err := a.gameRepo.Count(ctx); err == nil && count == 0 {
+		logger.Info("Fresh installation detected: seeding initial game catalog and search indexes...")
+		if seedErr := a.syncSvc.SeedInitialDatabase(ctx); seedErr != nil {
+			logger.Error("Failed to seed initial database", "err", seedErr)
+		} else {
+			logger.Info("Successfully seeded initial game catalog into database")
+		}
+	}
+
 	// 后台定期同步（若开启）
 	if a.cfg.AutoSyncEnabled {
 		a.syncSvc.StartPeriodicSync(a.cfg.AutoSyncIntervalHours)
@@ -447,45 +457,124 @@ func slugify(name string) string {
 }
 
 // GetLatestTrainers 获取原网最近更新修改器，并自动补全游戏实体映射、封面及收藏状态
+// 具备超时防护与离线降级兜底机制，保证在弱网、离线或全新设备上首页绝不显示为空白
 func (a *App) GetLatestTrainers(page int) ([]*model.SearchResult, error) {
 	ctx := a.ctx
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	results, err := a.flingAdapter.GetLatest(ctx, page)
+
+	// 1. 设置合理的在线抓取超时时间 (5 秒)，避免外部网络波动导致前端阻塞或超时白屏
+	onlineCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	results, err := a.flingAdapter.GetLatest(onlineCtx, page)
+	cancel()
+
+	if err == nil && len(results) > 0 {
+		for _, item := range results {
+			slug := slugify(item.GameNameEN)
+			if item.Slug == "" {
+				item.Slug = slug
+			}
+			if item.GameNameCN == "" {
+				cnCandidates := a.translator.TranslateEnglishToChinese(item.GameNameEN)
+				if len(cnCandidates) > 0 {
+					item.GameNameCN = cnCandidates[0]
+				}
+			}
+
+			// 确保关联或创建本地游戏记录，赋予稳定有效的 GameID 与收藏状态
+			g, _ := a.gameRepo.GetOrCreateBySlug(ctx, item.Slug, item.GameNameEN, item.GameNameCN, item.CoverURL)
+			if g != nil {
+				item.GameID = g.ID
+				item.IsFavorite = g.IsFavorite
+				if item.CoverURL == "" && g.CoverURL != "" {
+					item.CoverURL = g.CoverURL
+				}
+			}
+
+			if item.GameID > 0 {
+				if locals, lErr := a.localRepo.ListByGameID(ctx, item.GameID); lErr == nil && len(locals) > 0 {
+					item.IsDownloaded = true
+				}
+			}
+		}
+		return results, nil
+	}
+
+	// 2. 在线请求失败、超时或离线：启用离线降级兜底方案，保证首页内容丰满展示
+	logger.Warn("Failed to fetch online latest trainers, falling back to local seed/cache", "page", page, "err", err)
+	return a.getFallbackLatestTrainers(ctx, page)
+}
+
+func (a *App) getFallbackLatestTrainers(ctx context.Context, page int) ([]*model.SearchResult, error) {
+	if page <= 1 {
+		seedLatest, err := sync.LoadSeedLatest()
+		if err == nil && len(seedLatest) > 0 {
+			for _, item := range seedLatest {
+				slug := slugify(item.GameNameEN)
+				if item.Slug == "" {
+					item.Slug = slug
+				}
+				if item.GameNameCN == "" {
+					cnCandidates := a.translator.TranslateEnglishToChinese(item.GameNameEN)
+					if len(cnCandidates) > 0 {
+						item.GameNameCN = cnCandidates[0]
+					}
+				}
+				g, _ := a.gameRepo.GetBySlug(ctx, item.Slug)
+				if g != nil {
+					item.GameID = g.ID
+					item.IsFavorite = g.IsFavorite
+					if item.CoverURL == "" && g.CoverURL != "" {
+						item.CoverURL = g.CoverURL
+					}
+				}
+				if item.GameID > 0 {
+					if locals, lErr := a.localRepo.ListByGameID(ctx, item.GameID); lErr == nil && len(locals) > 0 {
+						item.IsDownloaded = true
+					}
+				}
+			}
+			return seedLatest, nil
+		}
+	}
+
+	// 从本地数据库分页查询已收录游戏作为兜底展示
+	offset := (page - 1) * 20
+	if offset < 0 {
+		offset = 0
+	}
+	games, err := a.gameRepo.List(ctx, offset, 20)
 	if err != nil {
 		return nil, err
 	}
 
-	for _, item := range results {
-		slug := slugify(item.GameNameEN)
-		if item.Slug == "" {
-			item.Slug = slug
-		}
-		if item.GameNameCN == "" {
-			cnCandidates := a.translator.TranslateEnglishToChinese(item.GameNameEN)
-			if len(cnCandidates) > 0 {
-				item.GameNameCN = cnCandidates[0]
-			}
-		}
-
-		// 确保关联或创建本地游戏记录，赋予稳定有效的 GameID 与收藏状态
-		g, _ := a.gameRepo.GetOrCreateBySlug(ctx, item.Slug, item.GameNameEN, item.GameNameCN, item.CoverURL)
-		if g != nil {
-			item.GameID = g.ID
-			item.IsFavorite = g.IsFavorite
-			if item.CoverURL == "" && g.CoverURL != "" {
-				item.CoverURL = g.CoverURL
-			}
-		}
-
-		if item.GameID > 0 {
-			if locals, lErr := a.localRepo.ListByGameID(ctx, item.GameID); lErr == nil && len(locals) > 0 {
-				item.IsDownloaded = true
-			}
-		}
+	var results []*model.SearchResult
+	for _, g := range games {
+		results = append(results, &model.SearchResult{
+			GameID:       g.ID,
+			Slug:         g.Slug,
+			GameNameEN:   g.NameEN,
+			GameNameCN:   g.NameCN,
+			TrainerTitle: g.NameEN + " Trainer",
+			DetailURL:    g.DetailURL,
+			CoverURL:     g.CoverURL,
+			SourceID:     "fling",
+			UpdatedAt:    g.UpdatedAt,
+			IsFavorite:   g.IsFavorite,
+			IsOnlineOnly: true,
+		})
 	}
 	return results, nil
+}
+
+// GetGameCount 获取本地索引收录的游戏总数
+func (a *App) GetGameCount() (int, error) {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return a.gameRepo.Count(ctx)
 }
 
 // GetLocalTrainers 获取已下载及自定义导入的本地修改器列表（附加运行中状态）

@@ -27,6 +27,7 @@ declare global {
           GetTrainerDetail: (detailURL: string) => Promise<any>
           GetGameDetail: (gameID: number) => Promise<any>
           GetLatestTrainers: (page: number) => Promise<SearchResult[]>
+          GetGameCount: () => Promise<number>
           GetLocalTrainers: () => Promise<LocalTrainerDetail[]>
           ImportCustomTrainer: (gameID: number, filePath: string) => Promise<LocalTrainer>
           DeleteLocalTrainer: (id: number, deleteFile: boolean) => Promise<void>
@@ -177,6 +178,13 @@ export const api = {
       return window.go!.app!.App!.GetLatestTrainers(page)
     }
     return []
+  },
+
+  async getGameCount(): Promise<number> {
+    if (isWails()) {
+      return window.go!.app!.App!.GetGameCount()
+    }
+    return 767
   },
 
   async getLocalTrainers(): Promise<LocalTrainerDetail[]> {
