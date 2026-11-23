@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import router from '../router'
 import { api } from '../api/wails'
 import { t } from '../i18n'
 import type { SearchResult, TrainerVersion, Game } from '../types'
@@ -219,6 +220,13 @@ export const useSearchStore = defineStore('search', () => {
     try {
       await api.startDownload(v.id)
       ElMessage.success(t('search.downloadStarted'))
+      // 1. 关闭版本详情抽屉
+      drawerVisible.value = false
+      // 2. 自动跳转至下载与任务管理界面
+      if (router.currentRoute.value.path !== '/downloads') {
+        router.push('/downloads')
+      }
+      // 3. 立即刷新下载任务列表
       import('./appStore').then(({ useAppStore }) => {
         useAppStore().refreshDownloads()
       }).catch(() => {})

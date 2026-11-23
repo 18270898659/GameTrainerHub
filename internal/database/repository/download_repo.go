@@ -108,11 +108,11 @@ func (r *DownloadRepository) ListTasks(ctx context.Context, status string) ([]*m
 	}
 	defer rows.Close()
 
-	var tasks []*model.DownloadTask
+	tasks := make([]*model.DownloadTask, 0)
 	for rows.Next() {
 		var t model.DownloadTask
 		if err := rows.Scan(&t.ID, &t.VersionID, &t.FileName, &t.SavePath, &t.TotalBytes, &t.DownloadedBytes, &t.Status, &t.ErrorMsg, &t.Retries, &t.CreatedAt, &t.UpdatedAt, &t.GameName, &t.TrainerName, &t.VersionName); err != nil {
-			return nil, err
+			return make([]*model.DownloadTask, 0), err
 		}
 		if t.TotalBytes > 0 {
 			t.Progress = float64(t.DownloadedBytes) / float64(t.TotalBytes) * 100
@@ -201,11 +201,11 @@ func (r *DownloadRepository) ListHistory(ctx context.Context, limit int) ([]*mod
 	}
 	defer rows.Close()
 
-	var list []*model.DownloadHistory
+	list := make([]*model.DownloadHistory, 0)
 	for rows.Next() {
 		var h model.DownloadHistory
 		if err := rows.Scan(&h.ID, &h.TaskID, &h.TrainerID, &h.VersionID, &h.GameName, &h.TrainerName, &h.VersionName, &h.FileName, &h.FileSize, &h.SHA256, &h.SavePath, &h.CompletedAt, &h.GameID, &h.CoverURL, &h.DetailURL); err != nil {
-			return nil, err
+			return make([]*model.DownloadHistory, 0), err
 		}
 		if _, statErr := os.Stat(h.SavePath); statErr == nil {
 			h.FileExists = true

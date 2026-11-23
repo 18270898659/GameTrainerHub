@@ -247,14 +247,22 @@ export const api = {
 
   async listDownloadTasks(): Promise<DownloadTask[]> {
     if (isWails()) {
-      return window.go!.app!.App!.ListDownloadTasks()
+      const res = await window.go!.app!.App!.ListDownloadTasks()
+      return Array.isArray(res) ? res : []
     }
     return []
   },
 
+  async deleteDownloadTask(taskID: number): Promise<void> {
+    if (isWails()) {
+      return (window as any).go.app.App.DeleteDownloadTask(taskID)
+    }
+  },
+
   async listDownloadHistory(limit: number = 50): Promise<DownloadHistory[]> {
     if (isWails()) {
-      return window.go!.app!.App!.ListDownloadHistory(limit)
+      const res = await window.go!.app!.App!.ListDownloadHistory(limit)
+      return Array.isArray(res) ? res : []
     }
     return []
   },

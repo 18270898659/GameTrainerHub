@@ -207,6 +207,7 @@
 
 <script setup lang="ts">
 import { ref, onMounted, onActivated } from 'vue'
+import { useRouter } from 'vue-router'
 import { Monitor, Plus, VideoPlay, VideoPause, Delete, Check, Connection, RefreshRight } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useAppStore } from '../stores/appStore'
@@ -218,6 +219,7 @@ import type { IntegrityResult } from '../types'
 
 defineOptions({ name: 'LibraryView' })
 
+const router = useRouter()
 const store = useAppStore()
 const scanningSteam = ref(false)
 const securityModalRef = ref<InstanceType<typeof SecurityModal> | null>(null)
@@ -267,6 +269,7 @@ async function promptMissingFileRecovery(item: any) {
     )
     await api.redownloadLocalTrainer(item.local_trainer.id)
     ElMessage.success('已创建重新下载任务，下载完成后将自动更新本地修改器')
+    router.push('/downloads')
     await store.refreshDownloads()
   } catch (e: any) {
     if (e !== 'cancel') {

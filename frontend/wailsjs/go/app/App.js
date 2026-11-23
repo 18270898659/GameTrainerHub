@@ -30,6 +30,10 @@ export function DeleteDownloadHistory(arg1, arg2) {
   return window['go']['app']['App']['DeleteDownloadHistory'](arg1, arg2);
 }
 
+export function DeleteDownloadTask(arg1) {
+  return window['go']['app']['App']['DeleteDownloadTask'](arg1);
+}
+
 export function DeleteLocalTrainer(arg1, arg2) {
   return window['go']['app']['App']['DeleteLocalTrainer'](arg1, arg2);
 }

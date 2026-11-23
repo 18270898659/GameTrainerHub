@@ -15,24 +15,33 @@ export const useAppStore = defineStore('app', () => {
 
   // 计算属性：当前活跃下载数
   const activeDownloadsCount = computed(() => {
-    return downloadTasks.value.filter(t => t.status === 'downloading' || t.status === 'pending' || t.status === 'retrying').length
+    if (!Array.isArray(downloadTasks.value)) return 0
+    return downloadTasks.value.filter(t => t && (t.status === 'downloading' || t.status === 'pending' || t.status === 'retrying')).length
   })
 
   // 刷新下载任务列表
   async function refreshDownloads() {
     try {
-      downloadTasks.value = await api.listDownloadTasks()
+      const res = await api.listDownloadTasks()
+      downloadTasks.value = Array.isArray(res) ? res : []
     } catch (e) {
       console.error('Failed to list download tasks', e)
+      if (!Array.isArray(downloadTasks.value)) {
+        downloadTasks.value = []
+      }
     }
   }
 
   // 刷新下载历史记录
   async function refreshHistory(limit: number = 100) {
     try {
-      downloadHistory.value = await api.listDownloadHistory(limit)
+      const res = await api.listDownloadHistory(limit)
+      downloadHistory.value = Array.isArray(res) ? res : []
     } catch (e) {
       console.error('Failed to list download history', e)
+      if (!Array.isArray(downloadHistory.value)) {
+        downloadHistory.value = []
+      }
     }
   }
 
@@ -75,9 +84,12 @@ export const useAppStore = defineStore('app', () => {
   // 接收下载进度事件更新
   function handleProgressUpdate(task: DownloadTask) {
     if (!task) return
+    if (!Array.isArray(downloadTasks.value)) {
+      downloadTasks.value = []
+    }
     const idx = downloadTasks.value.findIndex(t => t.id === task.id)
     if (idx !== -1) {
-      downloadTasks.value[idx] = task
+      downloadTasks.value[idx] = { ...downloadTasks.value[idx], ...task }
     } else {
       downloadTasks.value.unshift(task)
     }
@@ -94,8 +106,8 @@ export const useAppStore = defineStore('app', () => {
         }
       }
       refreshLocalTrainers()
-      refreshDownloads()
       refreshHistory()
+      refreshDownloads()
     }
   }
 

@@ -849,5 +849,125 @@ func TestSearchSuggestionsAndHistoryPersistence(t *testing.T) {
 	}
 }
 
+func TestDownloadTasksRetentionAndDeletion(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gth_retention_test_*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	cfg := &config.AppConfig{
+		DataDir: tempDir,
+		LogDir:  filepath.Join(tempDir, "logs"),
+	}
+
+	app, err := NewApp(cfg)
+	if err != nil {
+		t.Fatalf("failed to create app: %v", err)
+	}
+	ctx := context.Background()
+	app.Startup(ctx)
+	defer app.Shutdown(ctx)
+
+	// 1. 空任务列表测试：应返回空切片而非 nil
+	tasks, err := app.ListDownloadTasks()
+	if err != nil {
+		t.Fatalf("ListDownloadTasks failed on empty db: %v", err)
+	}
+	if tasks == nil {
+		t.Fatalf("ListDownloadTasks returned nil, expected empty slice")
+	}
+
+	history, err := app.ListDownloadHistory(10)
+	if err != nil {
+		t.Fatalf("ListDownloadHistory failed on empty db: %v", err)
+	}
+	if history == nil {
+		t.Fatalf("ListDownloadHistory returned nil, expected empty slice")
+	}
+
+	// 2. 建立有效版本外键关联数据
+	g := &model.Game{Slug: "game-a", NameEN: "Game A", NameCN: "游戏A"}
+	if err := app.gameRepo.Create(ctx, g); err != nil {
+		t.Fatalf("Create game failed: %v", err)
+	}
+	tr := &model.Trainer{GameID: g.ID, SourceID: "fling", TitleEN: "Trainer A"}
+	if err := app.trainerRepo.CreateTrainer(ctx, tr); err != nil {
+		t.Fatalf("Create trainer failed: %v", err)
+	}
+	v1 := &model.TrainerVersion{TrainerID: tr.ID, VersionName: "v1.0", DownloadURL: "https://example.com/1.zip"}
+	if err := app.trainerRepo.CreateVersion(ctx, v1); err != nil {
+		t.Fatalf("Create version 1 failed: %v", err)
+	}
+	v2 := &model.TrainerVersion{TrainerID: tr.ID, VersionName: "v2.0", DownloadURL: "https://example.com/2.zip"}
+	if err := app.trainerRepo.CreateVersion(ctx, v2); err != nil {
+		t.Fatalf("Create version 2 failed: %v", err)
+	}
+
+	// 插入不同状态任务 (downloading 与 completed)
+	tDownloading := &model.DownloadTask{
+		VersionID:   v1.ID,
+		FileName:    "test_downloading.zip",
+		SavePath:    filepath.Join(tempDir, "test_downloading.zip"),
+		TotalBytes:  1000,
+		Status:      model.DownloadStatusDownloading,
+		GameName:    "Game A",
+		TrainerName: "Trainer A",
+	}
+	if err := app.dlRepo.CreateTask(ctx, tDownloading); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+
+	tCompleted := &model.DownloadTask{
+		VersionID:   v2.ID,
+		FileName:    "test_completed.zip",
+		SavePath:    filepath.Join(tempDir, "test_completed.zip"),
+		TotalBytes:  2000,
+		Status:      model.DownloadStatusCompleted,
+		GameName:    "Game A",
+		TrainerName: "Trainer A",
+	}
+	if err := app.dlRepo.CreateTask(ctx, tCompleted); err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+
+	// 3. 验证 ListDownloadTasks 是否保留已完成任务
+	tasks, err = app.ListDownloadTasks()
+	if err != nil {
+		t.Fatalf("ListDownloadTasks failed: %v", err)
+	}
+	if len(tasks) != 2 {
+		t.Fatalf("expected 2 tasks (including completed), got %d", len(tasks))
+	}
+
+	var hasCompleted bool
+	for _, task := range tasks {
+		if task.Status == model.DownloadStatusCompleted {
+			hasCompleted = true
+			break
+		}
+	}
+	if !hasCompleted {
+		t.Errorf("expected completed task to be retained in ListDownloadTasks")
+	}
+
+	// 4. 测试删除单个任务记录 (DeleteDownloadTask)
+	if err := app.DeleteDownloadTask(tCompleted.ID); err != nil {
+		t.Fatalf("DeleteDownloadTask failed: %v", err)
+	}
+
+	tasks, err = app.ListDownloadTasks()
+	if err != nil {
+		t.Fatalf("ListDownloadTasks after deletion failed: %v", err)
+	}
+	if len(tasks) != 1 {
+		t.Fatalf("expected 1 task after deletion, got %d", len(tasks))
+	}
+	if tasks[0].ID != tDownloading.ID {
+		t.Errorf("expected remaining task to be tDownloading, got %v", tasks[0])
+	}
+}
+
+
 
 

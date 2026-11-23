@@ -597,13 +597,29 @@ func (a *App) CancelDownload(taskID int64) error {
 	return a.dlManager.CancelTask(taskID)
 }
 
-// ListDownloadTasks 查询当前所有未完成的活动下载任务（成功任务自动移入下载历史）
+// ListDownloadTasks 查询所有下载任务（包含下载中、排队中、暂停、重试、已完成及失败任务，按更新时间降序）
 func (a *App) ListDownloadTasks() ([]*model.DownloadTask, error) {
 	ctx := a.ctx
 	if ctx == nil {
 		ctx = context.Background()
 	}
-	return a.dlRepo.ListActiveTasks(ctx)
+	tasks, err := a.dlRepo.ListTasks(ctx, "")
+	if err != nil {
+		return make([]*model.DownloadTask, 0), err
+	}
+	if tasks == nil {
+		tasks = make([]*model.DownloadTask, 0)
+	}
+	return tasks, nil
+}
+
+// DeleteDownloadTask 从下载任务列表中删除单个任务记录（默认不删除本地物理文件）
+func (a *App) DeleteDownloadTask(taskID int64) error {
+	ctx := a.ctx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return a.dlRepo.DeleteTask(ctx, taskID)
 }
 
 // ListDownloadHistory 查询下载历史
@@ -615,7 +631,14 @@ func (a *App) ListDownloadHistory(limit int) ([]*model.DownloadHistory, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	return a.dlRepo.ListHistory(ctx, limit)
+	list, err := a.dlRepo.ListHistory(ctx, limit)
+	if err != nil {
+		return make([]*model.DownloadHistory, 0), err
+	}
+	if list == nil {
+		list = make([]*model.DownloadHistory, 0)
+	}
+	return list, nil
 }
 
 // DeleteDownloadHistory 删除指定下载历史记录（默认仅删除历史记录，不影响本地物理文件；deletePhysicalFile 为 true 时同时清理本地文件）

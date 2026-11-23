@@ -20,6 +20,8 @@ export function ClearSearchHistory():Promise<void>;
 
 export function DeleteDownloadHistory(arg1:number,arg2:boolean):Promise<void>;
 
+export function DeleteDownloadTask(arg1:number):Promise<void>;
+
 export function DeleteLocalTrainer(arg1:number,arg2:boolean):Promise<void>;
 
 export function DiagnoseEnvironment():Promise<model.DiagnosticReport>;

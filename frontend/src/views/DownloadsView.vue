@@ -4,13 +4,13 @@
     <div class="view-mode-bar">
       <el-radio-group v-model="viewMode" size="default" class="view-radio-group">
         <el-radio-button value="all">
-          {{ t('downloads.tabAll', { count: store.downloadTasks.length + store.downloadHistory.length }) }}
+          {{ t('downloads.tabAll', { count: (store.downloadTasks || []).length + (store.downloadHistory || []).length }) }}
         </el-radio-button>
         <el-radio-button value="active">
-          {{ t('downloads.tabActive', { count: store.downloadTasks.length }) }}
+          {{ t('downloads.tabActive', { count: (store.downloadTasks || []).length }) }}
         </el-radio-button>
         <el-radio-button value="history">
-          {{ t('downloads.tabHistory', { count: store.downloadHistory.length }) }}
+          {{ t('downloads.tabHistory', { count: (store.downloadHistory || []).length }) }}
         </el-radio-button>
       </el-radio-group>
     </div>
@@ -21,25 +21,29 @@
         <div class="section-heading">
           <el-icon class="heading-icon text-cyan"><Download /></el-icon>
           <span class="heading-title">{{ t('downloads.sectionCurrent') }}</span>
-          <el-tag size="small" type="primary" round>{{ store.downloadTasks.length }}</el-tag>
+          <el-tag size="small" type="primary" round>{{ (store.downloadTasks || []).length }}</el-tag>
         </div>
 
         <div class="section-controls">
-          <div v-if="store.downloadTasks.length > 0" class="batch-btns">
+          <div v-if="(store.downloadTasks || []).length > 0" class="batch-btns">
             <el-button size="small" plain @click="pauseAll">
               <el-icon><VideoPause /></el-icon> {{ t('downloads.pauseAll') }}
             </el-button>
             <el-button size="small" type="primary" plain @click="resumeAll">
               <el-icon><VideoPlay /></el-icon> {{ t('downloads.resumeAll') }}
             </el-button>
+            <el-button v-if="hasCompletedTasks" size="small" plain @click="clearCompletedTasks">
+              <el-icon><Delete /></el-icon> 清理已完成
+            </el-button>
           </div>
 
           <div class="filter-radios">
             <el-radio-group v-model="statusFilter" size="small">
-              <el-radio-button value="all">全部 ({{ store.downloadTasks.length }})</el-radio-button>
-              <el-radio-button value="downloading">下载中</el-radio-button>
-              <el-radio-button value="paused">已暂停</el-radio-button>
-              <el-radio-button value="failed">失败</el-radio-button>
+              <el-radio-button value="all">全部 ({{ (store.downloadTasks || []).length }})</el-radio-button>
+              <el-radio-button value="downloading">下载中 ({{ downloadingCount }})</el-radio-button>
+              <el-radio-button value="completed">已完成 ({{ completedCount }})</el-radio-button>
+              <el-radio-button value="paused">已暂停 ({{ pausedCount }})</el-radio-button>
+              <el-radio-button value="failed">失败 ({{ failedCount }})</el-radio-button>
             </el-radio-group>
           </div>
         </div>
@@ -52,6 +56,7 @@
           :key="task.id"
           class="task-card"
           :class="{
+            'card-completed': task.status === 'completed',
             'card-failed': task.status === 'failed',
             'card-retrying': task.status === 'retrying'
           }"
@@ -64,40 +69,76 @@
               </span>
             </div>
             <div class="task-actions">
-              <el-button
-                v-if="task.status === 'downloading' || task.status === 'retrying'"
-                size="small"
-                plain
-                @click="pauseTask(task.id)"
-              >
-                <el-icon><VideoPause /></el-icon> {{ t('downloads.pause') }}
-              </el-button>
-              <el-button
-                v-else-if="task.status === 'paused'"
-                size="small"
-                type="primary"
-                plain
-                @click="resumeTask(task.id)"
-              >
-                <el-icon><VideoPlay /></el-icon> {{ t('downloads.resume') }}
-              </el-button>
-              <el-button
-                v-else-if="task.status === 'failed'"
-                size="small"
-                type="warning"
-                plain
-                @click="resumeTask(task.id)"
-              >
-                <el-icon><RefreshRight /></el-icon> {{ t('downloads.retry') }}
-              </el-button>
-              <el-button
-                size="small"
-                type="danger"
-                plain
-                @click="cancelTask(task.id)"
-              >
-                <el-icon><Delete /></el-icon> {{ t('downloads.cancel') }}
-              </el-button>
+              <template v-if="task.status === 'completed'">
+                <el-button
+                  size="small"
+                  type="primary"
+                  plain
+                  @click="openFolder(task.save_path)"
+                >
+                  <el-icon><FolderOpened /></el-icon> {{ t('downloads.locateFile') }}
+                </el-button>
+                <el-button
+                  size="small"
+                  plain
+                  @click="removeDownloadTask(task.id)"
+                >
+                  <el-icon><Delete /></el-icon> {{ t('downloads.clearRecord') }}
+                </el-button>
+              </template>
+              <template v-else-if="task.status === 'downloading' || task.status === 'retrying'">
+                <el-button
+                  size="small"
+                  plain
+                  @click="pauseTask(task.id)"
+                >
+                  <el-icon><VideoPause /></el-icon> {{ t('downloads.pause') }}
+                </el-button>
+                <el-button
+                  size="small"
+                  type="danger"
+                  plain
+                  @click="cancelTask(task.id)"
+                >
+                  <el-icon><Delete /></el-icon> {{ t('downloads.cancel') }}
+                </el-button>
+              </template>
+              <template v-else-if="task.status === 'paused'">
+                <el-button
+                  size="small"
+                  type="primary"
+                  plain
+                  @click="resumeTask(task.id)"
+                >
+                  <el-icon><VideoPlay /></el-icon> {{ t('downloads.resume') }}
+                </el-button>
+                <el-button
+                  size="small"
+                  type="danger"
+                  plain
+                  @click="cancelTask(task.id)"
+                >
+                  <el-icon><Delete /></el-icon> {{ t('downloads.cancel') }}
+                </el-button>
+              </template>
+              <template v-else-if="task.status === 'failed'">
+                <el-button
+                  size="small"
+                  type="warning"
+                  plain
+                  @click="resumeTask(task.id)"
+                >
+                  <el-icon><RefreshRight /></el-icon> {{ t('downloads.retry') }}
+                </el-button>
+                <el-button
+                  size="small"
+                  type="danger"
+                  plain
+                  @click="cancelTask(task.id)"
+                >
+                  <el-icon><Delete /></el-icon> {{ t('downloads.cancel') }}
+                </el-button>
+              </template>
             </div>
           </div>
 
@@ -132,7 +173,7 @@
 
       <!-- Empty Active Tasks State -->
       <div v-else class="active-empty-state">
-        <div v-if="store.downloadHistory.length > 0" class="active-idle-banner">
+        <div v-if="(store.downloadHistory || []).length > 0" class="active-idle-banner">
           <el-icon class="text-emerald text-lg"><Check /></el-icon>
           <div class="idle-text-wrap">
             <span class="idle-main">{{ t('downloads.noActiveTasksWithHistory') }}</span>
@@ -150,7 +191,7 @@
         <div class="section-heading">
           <el-icon class="heading-icon text-amber"><Clock /></el-icon>
           <span class="heading-title">{{ t('downloads.sectionHistory') }}</span>
-          <el-tag size="small" type="success" round>{{ store.downloadHistory.length }}</el-tag>
+          <el-tag size="small" type="success" round>{{ (store.downloadHistory || []).length }}</el-tag>
         </div>
 
         <div class="section-controls">
@@ -167,7 +208,7 @@
           </el-input>
 
           <el-button
-            v-if="store.downloadHistory.length > 0"
+            v-if="(store.downloadHistory || []).length > 0"
             size="small"
             type="danger"
             plain
@@ -329,22 +370,35 @@ const selectedHistoryItem = ref<DownloadHistory | null>(null)
 const deletePhysicalFile = ref(false)
 const deletingHistory = ref(false)
 
+const allTasks = computed(() => Array.isArray(store.downloadTasks) ? store.downloadTasks : [])
+const allHistory = computed(() => Array.isArray(store.downloadHistory) ? store.downloadHistory : [])
+
+const downloadingCount = computed(() => allTasks.value.filter(t => t && (t.status === 'downloading' || t.status === 'retrying')).length)
+const completedCount = computed(() => allTasks.value.filter(t => t && t.status === 'completed').length)
+const pausedCount = computed(() => allTasks.value.filter(t => t && t.status === 'paused').length)
+const failedCount = computed(() => allTasks.value.filter(t => t && t.status === 'failed').length)
+const hasCompletedTasks = computed(() => completedCount.value > 0)
+
 const filteredTasks = computed(() => {
-  if (statusFilter.value === 'all') return store.downloadTasks
+  const tasks = allTasks.value
+  if (statusFilter.value === 'all') return tasks
   if (statusFilter.value === 'downloading') {
-    return store.downloadTasks.filter(t => t.status === 'downloading' || t.status === 'retrying')
+    return tasks.filter(t => t && (t.status === 'downloading' || t.status === 'retrying'))
   }
-  return store.downloadTasks.filter(t => t.status === statusFilter.value)
+  return tasks.filter(t => t && t.status === statusFilter.value)
 })
 
 const filteredHistory = computed(() => {
+  const history = allHistory.value
   const kw = historyFilterKeyword.value.trim().toLowerCase()
-  if (!kw) return store.downloadHistory
-  return store.downloadHistory.filter(h =>
-    (h.game_name && h.game_name.toLowerCase().includes(kw)) ||
-    (h.trainer_name && h.trainer_name.toLowerCase().includes(kw)) ||
-    (h.file_name && h.file_name.toLowerCase().includes(kw)) ||
-    (h.version_name && h.version_name.toLowerCase().includes(kw))
+  if (!kw) return history
+  return history.filter(h =>
+    h && (
+      (h.game_name && h.game_name.toLowerCase().includes(kw)) ||
+      (h.trainer_name && h.trainer_name.toLowerCase().includes(kw)) ||
+      (h.file_name && h.file_name.toLowerCase().includes(kw)) ||
+      (h.version_name && h.version_name.toLowerCase().includes(kw))
+    )
   )
 })
 
@@ -421,6 +475,30 @@ async function cancelTask(id: number) {
   }
 }
 
+async function removeDownloadTask(id: number) {
+  try {
+    await api.deleteDownloadTask(id)
+    await store.refreshDownloads()
+    ElMessage.success(t('downloads.clearRecord') + '成功')
+  } catch (e: any) {
+    ElMessage.error('清除任务记录失败: ' + (e?.message || e))
+  }
+}
+
+async function clearCompletedTasks() {
+  const completed = allTasks.value.filter(t => t && t.status === 'completed')
+  if (completed.length === 0) return
+  try {
+    for (const t of completed) {
+      await api.deleteDownloadTask(t.id)
+    }
+    await store.refreshDownloads()
+    ElMessage.success('已清理所有已完成任务记录')
+  } catch (e: any) {
+    ElMessage.error('清理失败: ' + (e?.message || e))
+  }
+}
+
 async function openFolder(path: string) {
   try {
     await api.openContainingFolder(path)
@@ -445,17 +523,18 @@ async function redownload(row: DownloadHistory) {
 }
 
 function viewHistoryDetail(row: DownloadHistory) {
+  if (!row) return
   const converted: SearchResult = {
     game_id: row.game_id || 0,
     slug: '',
-    game_name_en: row.game_name,
-    game_name_cn: row.game_name,
+    game_name_en: row.game_name || '',
+    game_name_cn: row.game_name || '',
     cover_url: row.cover_url || '',
     source_id: 'fling',
-    trainer_title: (row.trainer_name || row.game_name) + ' 修改器',
+    trainer_title: (row.trainer_name || row.game_name || '') + ' 修改器',
     detail_url: row.detail_url || '',
     version_name: row.version_name || '',
-    updated_at: row.completed_at,
+    updated_at: row.completed_at ? String(row.completed_at) : '',
     is_downloaded: row.file_exists !== false,
     is_online_only: false,
     is_favorite: false,
@@ -516,10 +595,11 @@ function formatFallbackGame(fileName?: string): string {
   return fileName.replace(/\.(exe|zip|rar)$/i, '').replace(/plus\s*\d+.*$/i, '').trim() || fileName
 }
 
-function formatDate(dateStr: string): string {
+function formatDate(dateStr?: string | Date): string {
   if (!dateStr) return ''
   try {
     const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return String(dateStr)
     const y = d.getFullYear()
     const m = (d.getMonth() + 1).toString().padStart(2, '0')
     const day = d.getDate().toString().padStart(2, '0')
@@ -527,7 +607,7 @@ function formatDate(dateStr: string): string {
     const min = d.getMinutes().toString().padStart(2, '0')
     return `${y}-${m}-${day} ${h}:${min}`
   } catch {
-    return dateStr
+    return String(dateStr)
   }
 }
 
@@ -717,6 +797,14 @@ function getStatusLabel(status: string, retries?: number): string {
 
 .status-failed {
   color: #ef4444;
+}
+
+.task-card.card-completed {
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.status-completed {
+  color: #10b981;
 }
 
 .status-retrying {
