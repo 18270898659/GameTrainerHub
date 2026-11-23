@@ -44,7 +44,17 @@ export default {
     suggEmpty: '未找到直接匹配的遊戲建議，按 Enter 查看完整搜尋結果',
     suggRecentSearch: '最近搜尋歷史',
     suggRecentVisited: '最近訪問遊戲',
-    suggViewDetail: '查看詳情'
+    suggViewDetail: '查看詳情',
+    loadingTitle: '正在載入資料...',
+    staleNotice: '目前顯示本地快取資料，正在後台嘗試重新整理',
+    retryingNotice: '網路波動，正在進行第 {count}/3 次重試...',
+    offlineNotice: '目前處於離線模式，顯示本地已收錄資料',
+    fetchError: '資料獲取失敗: {error}',
+    retryBtn: '重新載入',
+    emptyLatest: '暫無收錄修改器資料',
+    offlineSyncTip: '離線模式下無法同步遠端資源',
+    cachedTag: '本地快取',
+    networkRestored: '網路連線已恢復，已自動重新整理最新資料'
   },
   search: {
     placeholder: '中英雙向搜尋：黑神話：悟空 / Black Myth / 賽博朋克2077 / Cyberpunk / sbpk / 老頭環...',

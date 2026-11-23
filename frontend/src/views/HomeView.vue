@@ -150,22 +150,32 @@
 
     <!-- Quick Stats -->
     <div class="stats-grid">
-      <div class="stat-card">
-        <div class="stat-val">{{ indexedGamesCount }}</div>
-        <div class="stat-label">{{ t('home.statsIndexedGames') }}</div>
+      <div v-if="statsLoading && !indexedGamesCount" v-for="i in 4" :key="i" class="stat-card">
+        <el-skeleton animated>
+          <template #template>
+            <el-skeleton-item variant="h1" style="width: 50%; height: 28px; margin-bottom: 8px;" />
+            <el-skeleton-item variant="text" style="width: 70%; height: 14px;" />
+          </template>
+        </el-skeleton>
       </div>
-      <div class="stat-card">
-        <div class="stat-val">{{ store.localTrainers.length }}</div>
-        <div class="stat-label">{{ t('home.statsReadyTrainers') }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-val">{{ store.activeDownloadsCount }}</div>
-        <div class="stat-label">{{ t('home.statsActiveDownloads') }}</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-val">FLiNG</div>
-        <div class="stat-label">{{ t('home.statsOfficialSource') }}</div>
-      </div>
+      <template v-else>
+        <div class="stat-card">
+          <div class="stat-val">{{ indexedGamesCount }}</div>
+          <div class="stat-label">{{ t('home.statsIndexedGames') }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">{{ store.localTrainers.length }}</div>
+          <div class="stat-label">{{ t('home.statsReadyTrainers') }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">{{ store.activeDownloadsCount }}</div>
+          <div class="stat-label">{{ t('home.statsActiveDownloads') }}</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">FLiNG</div>
+          <div class="stat-label">{{ t('home.statsOfficialSource') }}</div>
+        </div>
+      </template>
     </div>
 
     <!-- My Favorites Section (if any) -->
@@ -203,7 +213,22 @@
             <span>{{ t('home.recentVisited') }}</span>
           </div>
         </div>
-        <div v-if="recentGames.length > 0" class="item-list">
+        <div v-if="recentGamesLoading && recentGames.length === 0" class="item-list-skeleton">
+          <div v-for="n in 3" :key="n" class="skeleton-row">
+            <el-skeleton animated>
+              <template #template>
+                <div style="display: flex; align-items: center; gap: 12px; padding: 4px 0;">
+                  <el-skeleton-item variant="image" style="width: 36px; height: 36px; border-radius: 4px;" />
+                  <div style="flex: 1;">
+                    <el-skeleton-item variant="text" style="width: 60%; height: 14px; margin-bottom: 4px;" />
+                    <el-skeleton-item variant="text" style="width: 40%; height: 12px;" />
+                  </div>
+                </div>
+              </template>
+            </el-skeleton>
+          </div>
+        </div>
+        <div v-else-if="recentGames.length > 0" class="item-list">
           <div
             v-for="g in recentGames"
             :key="g.id"
@@ -229,7 +254,22 @@
             <span>{{ t('home.recentTrainers') }}</span>
           </div>
         </div>
-        <div v-if="recentTrainers.length > 0" class="item-list">
+        <div v-if="recentTrainersLoading && recentTrainers.length === 0" class="item-list-skeleton">
+          <div v-for="n in 3" :key="n" class="skeleton-row">
+            <el-skeleton animated>
+              <template #template>
+                <div style="display: flex; align-items: center; gap: 12px; padding: 4px 0;">
+                  <el-skeleton-item variant="circle" style="width: 36px; height: 36px;" />
+                  <div style="flex: 1;">
+                    <el-skeleton-item variant="text" style="width: 60%; height: 14px; margin-bottom: 4px;" />
+                    <el-skeleton-item variant="text" style="width: 40%; height: 12px;" />
+                  </div>
+                </div>
+              </template>
+            </el-skeleton>
+          </div>
+        </div>
+        <div v-else-if="recentTrainers.length > 0" class="item-list">
           <div
             v-for="tr in recentTrainers"
             :key="tr.local_trainer.id"
@@ -258,12 +298,69 @@
           <el-icon><Clock /></el-icon>
           <span>{{ t('home.latestTitle') }}</span>
         </div>
-        <el-button size="small" :loading="store.isSyncing" @click="triggerSync" plain>
-          <el-icon><Refresh /></el-icon> {{ t('home.syncBtn') }}
-        </el-button>
+        <div class="section-actions">
+          <el-button size="small" :loading="store.isSyncing" @click="triggerSync" plain>
+            <el-icon><Refresh /></el-icon> {{ t('home.syncBtn') }}
+          </el-button>
+        </div>
       </div>
 
-      <div v-loading="loading" class="trainers-grid">
+      <!-- 状态横幅提示（网络波动重试、离线缓存模式、请求异常兜底） -->
+      <transition name="el-fade-in">
+        <div v-if="store.latestStatus === 'retrying'" class="status-banner retrying">
+          <el-icon class="is-loading"><Loading /></el-icon>
+          <span>{{ t('home.retryingNotice', { count: store.latestRetryCount }) }}</span>
+        </div>
+        <div v-else-if="isOffline" class="status-banner offline">
+          <el-icon><WarningFilled /></el-icon>
+          <span>{{ t('home.offlineNotice') }}</span>
+          <el-tag size="small" type="info" class="banner-tag">{{ t('home.cachedTag') }}</el-tag>
+        </div>
+        <div v-else-if="store.isLatestStale && store.latestError" class="status-banner stale">
+          <el-icon><InfoFilled /></el-icon>
+          <span>{{ t('home.staleNotice') }}</span>
+          <el-button link type="primary" size="small" :loading="manualReloading" @click="handleManualReload">
+            <el-icon><Refresh /></el-icon> {{ t('home.retryBtn') }}
+          </el-button>
+        </div>
+      </transition>
+
+      <!-- 1. 加载中骨架屏（无缓存首次加载或重置加载） -->
+      <div v-if="store.latestStatus === 'loading' && store.latestTrainers.length === 0" class="trainers-grid">
+        <div v-for="n in 8" :key="n" class="trainer-card-skeleton">
+          <el-skeleton animated>
+            <template #template>
+              <el-skeleton-item variant="image" style="width: 100%; height: 120px;" />
+              <div style="padding: 12px;">
+                <el-skeleton-item variant="text" style="width: 70%; height: 16px; margin-bottom: 8px;" />
+                <el-skeleton-item variant="text" style="width: 50%; height: 12px; margin-bottom: 12px;" />
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <el-skeleton-item variant="text" style="width: 30%; height: 12px;" />
+                  <el-skeleton-item variant="rect" style="width: 48px; height: 20px; border-radius: 4px;" />
+                </div>
+              </div>
+            </template>
+          </el-skeleton>
+        </div>
+      </div>
+
+      <!-- 2. 请求彻底失败且无任何本地缓存时的错误状态卡片 -->
+      <div v-else-if="store.latestStatus === 'error' && store.latestTrainers.length === 0" class="latest-error-card">
+        <el-result
+          icon="error"
+          :title="t('home.fetchError', { error: store.latestError || 'Network Error' })"
+          sub-title="未检测到可用本地缓存。请检查网络配置或点击下方按钮重新加载。"
+        >
+          <template #extra>
+            <el-button type="primary" :loading="manualReloading" @click="handleManualReload">
+              <el-icon><Refresh /></el-icon> {{ t('home.retryBtn') }}
+            </el-button>
+          </template>
+        </el-result>
+      </div>
+
+      <!-- 3. 数据加载成功或有本地缓存兜底时的修改器网格 -->
+      <div v-else-if="store.latestTrainers.length > 0" class="trainers-grid">
         <div
           v-for="item in store.latestTrainers"
           :key="item.slug"
@@ -298,11 +395,11 @@
         </div>
       </div>
 
-      <!-- 弱网或初始化异常时的兜底空状态 -->
-      <div v-if="!loading && store.latestTrainers.length === 0" class="latest-empty-card">
-        <el-empty :description="t('home.noTrainers') || '暂未获取到修改器列表'">
+      <!-- 4. 真实空数据状态（请求成功但数据为空） -->
+      <div v-else-if="store.latestStatus === 'empty' || store.latestTrainers.length === 0" class="latest-empty-card">
+        <el-empty :description="t('home.emptyLatest')">
           <el-button type="primary" size="small" :loading="store.isSyncing" @click="triggerSync">
-            <el-icon><Refresh /></el-icon> {{ t('home.syncBtn') || '立即同步资源' }}
+            <el-icon><Refresh /></el-icon> {{ t('home.syncBtn') }}
           </el-button>
         </el-empty>
       </div>
@@ -313,7 +410,19 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, onActivated } from 'vue'
 import { useRouter } from 'vue-router'
-import { Search, Clock, Refresh, Star, StarFilled, Compass, Cpu, Loading, Right, InfoFilled } from '@element-plus/icons-vue'
+import {
+  Search,
+  Clock,
+  Refresh,
+  Star,
+  StarFilled,
+  Compass,
+  Cpu,
+  Loading,
+  Right,
+  InfoFilled,
+  WarningFilled
+} from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useAppStore } from '../stores/appStore'
 import { useSearchStore } from '../stores/searchStore'
@@ -322,6 +431,10 @@ import { t } from '../i18n'
 import { DEFAULT_GAME_COVER } from '../utils/assets'
 import type { SearchResult, Game, LocalTrainerDetail } from '../types'
 
+defineOptions({
+  name: 'HomeView'
+})
+
 const router = useRouter()
 const store = useAppStore()
 const searchStore = useSearchStore()
@@ -329,10 +442,17 @@ const searchStore = useSearchStore()
 const searchBoxRef = ref<HTMLElement | null>(null)
 const searchInputRef = ref<any>(null)
 const heroQuery = ref('')
-const loading = ref(false)
 const indexedGamesCount = ref('767+')
 const recentGames = ref<Game[]>([])
 const recentTrainers = ref<LocalTrainerDetail[]>([])
+
+// 独立模块加载状态，隔离异常
+const statsLoading = ref(false)
+const favoritesLoading = ref(false)
+const recentGamesLoading = ref(false)
+const recentTrainersLoading = ref(false)
+const manualReloading = ref(false)
+const isOffline = ref(typeof navigator !== 'undefined' ? !navigator.onLine : false)
 
 // 搜索建议联想状态
 const showSuggestions = ref(false)
@@ -342,22 +462,88 @@ const activeSuggestIndex = ref(-1)
 let debounceTimer: any = null
 let currentSeq = 0
 
-async function loadDashboardData() {
+// 1. 独立统计数据加载
+async function loadStats() {
+  statsLoading.value = true
   try {
-    const [_, visited, recTrainers, count] = await Promise.all([
-      store.refreshFavorites(),
-      api.getRecentGames(6),
-      api.getRecentTrainers(6),
-      api.getGameCount()
-    ])
-    recentGames.value = visited || []
-    recentTrainers.value = recTrainers || []
+    const count = await api.getGameCount()
     if (count && count > 0) {
       indexedGamesCount.value = `${count}+`
     }
   } catch (e) {
-    console.warn('Dashboard data fetch failed', e)
+    console.warn('Game count fetch failed', e)
+  } finally {
+    statsLoading.value = false
   }
+}
+
+// 2. 独立收藏夹数据加载
+async function loadFavorites() {
+  favoritesLoading.value = true
+  try {
+    await store.refreshFavorites()
+  } catch (e) {
+    console.warn('Favorites fetch failed', e)
+  } finally {
+    favoritesLoading.value = false
+  }
+}
+
+// 3. 独立最近访问游戏加载
+async function loadRecentGames() {
+  recentGamesLoading.value = true
+  try {
+    const visited = await api.getRecentGames(6)
+    recentGames.value = visited || []
+  } catch (e) {
+    console.warn('Recent games fetch failed', e)
+  } finally {
+    recentGamesLoading.value = false
+  }
+}
+
+// 4. 独立最近使用修改器加载
+async function loadRecentTrainers() {
+  recentTrainersLoading.value = true
+  try {
+    const rec = await api.getRecentTrainers(6)
+    recentTrainers.value = rec || []
+  } catch (e) {
+    console.warn('Recent trainers fetch failed', e)
+  } finally {
+    recentTrainersLoading.value = false
+  }
+}
+
+// 综合手动刷新入口
+async function handleManualReload() {
+  manualReloading.value = true
+  try {
+    await Promise.allSettled([
+      store.refreshLatest(true),
+      loadStats(),
+      loadFavorites(),
+      loadRecentGames(),
+      loadRecentTrainers()
+    ])
+  } finally {
+    manualReloading.value = false
+  }
+}
+
+// 网络状态监听回调
+function handleOnline() {
+  isOffline.value = false
+  ElMessage.success(t('home.networkRestored'))
+  store.refreshLatest(true)
+  loadStats()
+  loadRecentGames()
+  loadRecentTrainers()
+}
+
+function handleOffline() {
+  isOffline.value = true
+  ElMessage.warning(t('home.offlineNotice'))
 }
 
 function onInputFocus() {
@@ -468,45 +654,50 @@ function handleClickOutside(e: MouseEvent) {
   }
 }
 
-onMounted(async () => {
+onMounted(() => {
   document.addEventListener('click', handleClickOutside)
-  searchStore.loadSearchHistory()
-  loading.value = true
-  try {
-    await Promise.all([
-      store.refreshLatest(),
-      store.refreshLocalTrainers(),
-      store.refreshDownloads(),
-      loadDashboardData()
-    ])
-  } finally {
-    loading.value = false
+  if (typeof window !== 'undefined') {
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
   }
+  searchStore.loadSearchHistory()
+  // 各模块并发独立加载，异常隔离
+  Promise.allSettled([
+    loadStats(),
+    loadFavorites(),
+    loadRecentGames(),
+    loadRecentTrainers(),
+    store.refreshLocalTrainers(),
+    store.refreshDownloads(),
+    store.refreshLatest(false)
+  ])
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleClickOutside)
+  if (typeof window !== 'undefined') {
+    window.removeEventListener('online', handleOnline)
+    window.removeEventListener('offline', handleOffline)
+  }
   if (debounceTimer) clearTimeout(debounceTimer)
 })
 
-onActivated(async () => {
+onActivated(() => {
   searchStore.loadSearchHistory()
-  loading.value = true
-  try {
-    await Promise.all([
-      store.refreshLatest(),
-      store.refreshLocalTrainers(),
-      store.refreshDownloads(),
-      loadDashboardData()
-    ])
-  } finally {
-    loading.value = false
+  // 切换回首页时静默刷新轻量数据，不阻断界面操作
+  loadStats()
+  loadFavorites()
+  loadRecentGames()
+  loadRecentTrainers()
+  // 若数据过旧或已失效则后台静默刷新
+  if (store.isLatestStale || !store.latestLastUpdated || Date.now() - store.latestLastUpdated > 300000) {
+    store.refreshLatest(false)
   }
 })
 
 async function toggleLatestFavorite(item: SearchResult) {
   await searchStore.toggleFavorite(item)
-  await loadDashboardData()
+  await loadFavorites()
 }
 
 function goToDetail(item: SearchResult) {
@@ -552,7 +743,11 @@ async function triggerSync() {
   try {
     const rec = await api.triggerSync()
     ElMessage.success(t('home.syncSuccess', { added: rec?.added_count || 0, updated: rec?.updated_count || 0 }))
-    await store.refreshLatest()
+    await Promise.allSettled([
+      store.refreshLatest(true),
+      loadStats(),
+      loadRecentGames()
+    ])
   } catch (e: any) {
     ElMessage.error(t('home.syncFailed') + (e.message || e))
   } finally {
@@ -1126,5 +1321,59 @@ async function triggerSync() {
 }
 .mt-6 {
   margin-top: 24px;
+}
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 8px;
+  margin-bottom: 16px;
+  font-size: 13px;
+  line-height: 1.5;
+  transition: all 0.3s ease;
+}
+.status-banner.retrying {
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  color: #f59e0b;
+}
+.status-banner.offline {
+  background: rgba(239, 68, 68, 0.12);
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: #ef4444;
+}
+.status-banner.stale {
+  background: rgba(14, 165, 233, 0.12);
+  border: 1px solid rgba(14, 165, 233, 0.35);
+  color: #38bdf8;
+}
+.banner-tag {
+  margin-left: auto;
+}
+.latest-error-card {
+  padding: 32px 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+.trainer-card-skeleton {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.item-list-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.skeleton-row {
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg-card-subtle);
 }
 </style>

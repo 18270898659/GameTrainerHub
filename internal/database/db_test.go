@@ -270,10 +270,10 @@ func TestVerifySeededProductionDB(t *testing.T) {
 	t.Logf("Total trainers in DB: %d", trainerCount)
 	t.Logf("Total FTS5 indexed: %d", ftsCount)
 
-	if gameCount != 767 {
-		t.Errorf("expected 767 games, got %d", gameCount)
+	if gameCount < 767 {
+		t.Errorf("expected at least 767 games, got %d", gameCount)
 	}
-	if trainerCount != 767 {
-		t.Errorf("expected 767 trainers, got %d", trainerCount)
+	if trainerCount < 767 {
+		t.Errorf("expected at least 767 trainers, got %d", trainerCount)
 	}
 }

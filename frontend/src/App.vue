@@ -57,7 +57,7 @@
 
         <div class="page-container">
           <router-view v-slot="{ Component }">
-            <keep-alive include="SearchView,DownloadsView,LibraryView">
+            <keep-alive include="HomeView,SearchView,DownloadsView,LibraryView">
               <component :is="Component" />
             </keep-alive>
           </router-view>

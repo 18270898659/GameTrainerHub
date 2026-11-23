@@ -44,7 +44,17 @@ export default {
     suggEmpty: 'No direct suggestion found. Press Enter to view full results',
     suggRecentSearch: 'Recent Searches',
     suggRecentVisited: 'Recently Visited',
-    suggViewDetail: 'View Details'
+    suggViewDetail: 'View Details',
+    loadingTitle: 'Loading data...',
+    staleNotice: 'Displaying cached data. Refreshing in background...',
+    retryingNotice: 'Network instability. Retrying ({count}/3)...',
+    offlineNotice: 'Running in offline mode. Displaying local data.',
+    fetchError: 'Failed to fetch data: {error}',
+    retryBtn: 'Reload',
+    emptyLatest: 'No trainer data available',
+    offlineSyncTip: 'Cannot sync remote resources while offline',
+    cachedTag: 'Cached',
+    networkRestored: 'Network connection restored. Refreshed latest data'
   },
   search: {
     placeholder: 'Bilingual search: Black Myth: Wukong / Cyberpunk 2077 / Elden Ring...',
