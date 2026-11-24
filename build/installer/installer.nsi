@@ -1,4 +1,4 @@
-﻿; ==============================================================================
+; ==============================================================================
 ; Game Trainer Hub - NSIS Installation Script
 ; ==============================================================================
 
@@ -72,17 +72,43 @@ ShowUnInstDetails show
 ; ------------------------------------------------------------------------------
 ; Functions - Running Process Check
 ; ------------------------------------------------------------------------------
+; ------------------------------------------------------------------------------
+; Functions - Running Process Check & Graceful Shutdown
+; ------------------------------------------------------------------------------
 Function CheckRunningProcess
   ${If} ${Silent}
+    ; In silent mode: attempt graceful close first, fallback to force kill
+    FindWindow $0 "wailsWindow" ""
+    ${If} $0 != 0
+      System::Call 'user32::PostMessage(i $0, i 0x0012, i 0, i 0)'
+    ${EndIf}
+    FindWindow $0 "GameTrainerHub_TrayWindow" ""
+    ${If} $0 != 0
+      System::Call 'user32::PostMessage(i $0, i 0x0012, i 0, i 0)'
+    ${EndIf}
     ${DisableX64FSRedirection}
-    nsExec::Exec 'cmd.exe /c taskkill.exe /F /T /IM "${APP_EXE}"'
-    nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
+    nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\graceful_close.ps1"'
+    nsExec::Exec 'cmd.exe /c taskkill.exe /IM "${APP_EXE}"'
     ${EnableX64FSRedirection}
-    Sleep 1000
+    Sleep 1500
+
+    ; Check if still running
+    ${DisableX64FSRedirection}
+    nsExec::ExecToStack 'cmd.exe /c tasklist /NH /FI "IMAGENAME eq ${APP_EXE}" | findstr /I "${APP_EXE}"'
+    Pop $0
+    Pop $1
+    ${EnableX64FSRedirection}
+    ${If} $0 == 0
+      ${DisableX64FSRedirection}
+      nsExec::Exec 'cmd.exe /c taskkill.exe /F /T /IM "${APP_EXE}"'
+      nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
+      ${EnableX64FSRedirection}
+      Sleep 1000
+    ${EndIf}
     Return
   ${EndIf}
 
-  loop:
+  check_loop:
     StrCpy $R0 0  ; $R0 = 1 if process is running
 
     ; --- Method 1: 64-bit tasklist check (bypassing WOW64 redirection) ---
@@ -107,35 +133,104 @@ Function CheckRunningProcess
       ${EndIf}
     ${EndIf}
 
-    ; If running, prompt user
+    ; If running, prompt user for confirmation
     ${If} $R0 == 1
-      MessageBox MB_YESNO|MB_ICONQUESTION "检测到 ${PRODUCT_NAME} 正在运行。$\r$\n$\r$\n原有程序已打开，是否关闭？$\r$\n$\r$\n点击【是】将关闭程序并继续安装。$\r$\n点击【否】将退出安装程序。" IDYES kill_and_continue IDNO abort_install
-      kill_and_continue:
+      MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "检测到 ${PRODUCT_NAME} 当前正在运行。$\r$\n$\r$\n为了确保安装或升级顺利完成，需要先关闭正在运行的程序。$\r$\n$\r$\n请确认是否关闭程序并继续安装？$\r$\n$\r$\n【确定】：关闭正在运行的程序，并继续安装。$\r$\n【取消】：退出安装程序，不继续安装。" IDOK on_confirm IDCANCEL on_cancel
+
+      on_confirm:
+        ; Phase 1: Request graceful shutdown (WM_QUIT & graceful helper)
+        FindWindow $0 "wailsWindow" ""
+        ${If} $0 != 0
+          System::Call 'user32::PostMessage(i $0, i 0x0012, i 0, i 0)'
+        ${EndIf}
+        FindWindow $0 "GameTrainerHub_TrayWindow" ""
+        ${If} $0 != 0
+          System::Call 'user32::PostMessage(i $0, i 0x0012, i 0, i 0)'
+        ${EndIf}
         ${DisableX64FSRedirection}
-        nsExec::Exec 'cmd.exe /c taskkill.exe /F /T /IM "${APP_EXE}"'
-        nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
+        nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\graceful_close.ps1"'
+        nsExec::Exec 'cmd.exe /c taskkill.exe /IM "${APP_EXE}"'
         ${EnableX64FSRedirection}
-        Sleep 1500
-        Goto loop
-      abort_install:
+
+        ; Phase 2: Wait for process to exit cleanly (up to 6 seconds)
+        StrCpy $R1 0
+        wait_exit_loop:
+          Sleep 500
+          IntOp $R1 $R1 + 1
+
+          ; Check if still running
+          StrCpy $R0 0
+          ${DisableX64FSRedirection}
+          nsExec::ExecToStack 'cmd.exe /c tasklist /NH /FI "IMAGENAME eq ${APP_EXE}" | findstr /I "${APP_EXE}"'
+          Pop $0
+          Pop $1
+          ${EnableX64FSRedirection}
+          ${If} $0 == 0
+            StrCpy $R0 1
+          ${EndIf}
+
+          ${If} $R0 == 0
+            ; Process exited cleanly!
+            Goto process_exited
+          ${EndIf}
+
+          ${If} $R1 < 12
+            Goto wait_exit_loop
+          ${EndIf}
+
+        ; Phase 3: Timeout - Shutdown failed, prompt user with explicit options
+        MessageBox MB_YESNOCANCEL|MB_ICONEXCLAMATION "${PRODUCT_NAME} 未能在规定时间内正常退出。$\r$\n$\r$\n是否尝试强制结束该程序？$\r$\n$\r$\n【是】：强制结束程序并继续安装（警告：未保存的数据可能会丢失）。$\r$\n【否】：重新尝试等待正常退出。$\r$\n【取消】：退出安装程序，不执行任何更改。" IDYES do_force_kill IDNO on_confirm
+        Goto on_cancel
+
+        do_force_kill:
+          ${DisableX64FSRedirection}
+          nsExec::Exec 'cmd.exe /c taskkill.exe /F /T /IM "${APP_EXE}"'
+          nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
+          ${EnableX64FSRedirection}
+          Sleep 1500
+          Goto check_loop
+
+      on_cancel:
         Abort
     ${EndIf}
+
+  process_exited:
 FunctionEnd
 
 Function un.CheckRunningProcess
   ${If} ${Silent}
+    FindWindow $0 "wailsWindow" ""
+    ${If} $0 != 0
+      System::Call 'user32::PostMessage(i $0, i 0x0012, i 0, i 0)'
+    ${EndIf}
+    FindWindow $0 "GameTrainerHub_TrayWindow" ""
+    ${If} $0 != 0
+      System::Call 'user32::PostMessage(i $0, i 0x0012, i 0, i 0)'
+    ${EndIf}
     ${DisableX64FSRedirection}
-    nsExec::Exec 'cmd.exe /c taskkill.exe /F /T /IM "${APP_EXE}"'
-    nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
+    nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\graceful_close.ps1"'
+    nsExec::Exec 'cmd.exe /c taskkill.exe /IM "${APP_EXE}"'
     ${EnableX64FSRedirection}
-    Sleep 1000
+    Sleep 1500
+
+    ${DisableX64FSRedirection}
+    nsExec::ExecToStack 'cmd.exe /c tasklist /NH /FI "IMAGENAME eq ${APP_EXE}" | findstr /I "${APP_EXE}"'
+    Pop $0
+    Pop $1
+    ${EnableX64FSRedirection}
+    ${If} $0 == 0
+      ${DisableX64FSRedirection}
+      nsExec::Exec 'cmd.exe /c taskkill.exe /F /T /IM "${APP_EXE}"'
+      nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
+      ${EnableX64FSRedirection}
+      Sleep 1000
+    ${EndIf}
     Return
   ${EndIf}
 
-  un_loop:
+  un_check_loop:
     StrCpy $R0 0
 
-    ; --- Method 1: 64-bit tasklist check ---
     ${DisableX64FSRedirection}
     nsExec::ExecToStack 'cmd.exe /c tasklist /NH /FI "IMAGENAME eq ${APP_EXE}" | findstr /I "${APP_EXE}"'
     Pop $0
@@ -145,7 +240,6 @@ Function un.CheckRunningProcess
       StrCpy $R0 1
     ${EndIf}
 
-    ; --- Method 2: Fallback via 64-bit PowerShell Get-Process ---
     ${If} $R0 == 0
       ${DisableX64FSRedirection}
       nsExec::ExecToStack 'powershell.exe -NoProfile -Command "if (Get-Process GameTrainerHub -ErrorAction SilentlyContinue) { exit 0 } else { exit 1 }"'
@@ -158,17 +252,61 @@ Function un.CheckRunningProcess
     ${EndIf}
 
     ${If} $R0 == 1
-      MessageBox MB_YESNO|MB_ICONQUESTION "检测到 ${PRODUCT_NAME} 正在运行。$\r$\n$\r$\n原有程序已打开，是否关闭？$\r$\n$\r$\n点击【是】将关闭程序并继续卸载。$\r$\n点击【否】将退出卸载程序。" IDYES un_kill_and_continue IDNO un_abort_uninstall
-      un_kill_and_continue:
+      MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "检测到 ${PRODUCT_NAME} 当前正在运行。$\r$\n$\r$\n为了确保卸载顺利完成，需要先关闭正在运行的程序。$\r$\n$\r$\n请确认是否关闭程序并继续卸载？$\r$\n$\r$\n【确定】：关闭正在运行的程序，并继续卸载。$\r$\n【取消】：退出卸载程序，不继续卸载。" IDOK un_on_confirm IDCANCEL un_on_cancel
+
+      un_on_confirm:
+        FindWindow $0 "wailsWindow" ""
+        ${If} $0 != 0
+          System::Call 'user32::PostMessage(i $0, i 0x0012, i 0, i 0)'
+        ${EndIf}
+        FindWindow $0 "GameTrainerHub_TrayWindow" ""
+        ${If} $0 != 0
+          System::Call 'user32::PostMessage(i $0, i 0x0012, i 0, i 0)'
+        ${EndIf}
         ${DisableX64FSRedirection}
-        nsExec::Exec 'cmd.exe /c taskkill.exe /F /T /IM "${APP_EXE}"'
-        nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
+        nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\graceful_close.ps1"'
+        nsExec::Exec 'cmd.exe /c taskkill.exe /IM "${APP_EXE}"'
         ${EnableX64FSRedirection}
-        Sleep 1500
-        Goto un_loop
-      un_abort_uninstall:
+
+        StrCpy $R1 0
+        un_wait_exit_loop:
+          Sleep 500
+          IntOp $R1 $R1 + 1
+
+          StrCpy $R0 0
+          ${DisableX64FSRedirection}
+          nsExec::ExecToStack 'cmd.exe /c tasklist /NH /FI "IMAGENAME eq ${APP_EXE}" | findstr /I "${APP_EXE}"'
+          Pop $0
+          Pop $1
+          ${EnableX64FSRedirection}
+          ${If} $0 == 0
+            StrCpy $R0 1
+          ${EndIf}
+
+          ${If} $R0 == 0
+            Goto un_process_exited
+          ${EndIf}
+
+          ${If} $R1 < 12
+            Goto un_wait_exit_loop
+          ${EndIf}
+
+        MessageBox MB_YESNOCANCEL|MB_ICONEXCLAMATION "${PRODUCT_NAME} 未能在规定时间内正常退出。$\r$\n$\r$\n是否尝试强制结束该程序？$\r$\n$\r$\n【是】：强制结束程序并继续卸载（警告：未保存的数据可能会丢失）。$\r$\n【否】：重新尝试等待正常退出。$\r$\n【取消】：退出卸载程序，不执行任何更改。" IDYES un_do_force_kill IDNO un_on_confirm
+        Goto un_on_cancel
+
+        un_do_force_kill:
+          ${DisableX64FSRedirection}
+          nsExec::Exec 'cmd.exe /c taskkill.exe /F /T /IM "${APP_EXE}"'
+          nsExec::Exec 'powershell.exe -NoProfile -ExecutionPolicy Bypass -Command "Get-Process GameTrainerHub -ErrorAction SilentlyContinue | Stop-Process -Force"'
+          ${EnableX64FSRedirection}
+          Sleep 1500
+          Goto un_check_loop
+
+      un_on_cancel:
         Abort
     ${EndIf}
+
+  un_process_exited:
 FunctionEnd
 
 ; ------------------------------------------------------------------------------
@@ -219,6 +357,10 @@ Function .onInit
     Abort
   ${EndIf}
 
+  ; Initialize temporary plugins dir and extract helper
+  InitPluginsDir
+  File "/oname=$PLUGINSDIR\graceful_close.ps1" "graceful_close.ps1"
+
   ; 2. Check running process
   Call CheckRunningProcess
 
@@ -229,6 +371,10 @@ FunctionEnd
 Function un.onInit
   SetRegView 64
   SetShellVarContext all
+
+  ; Initialize temporary plugins dir and extract helper
+  InitPluginsDir
+  File "/oname=$PLUGINSDIR\graceful_close.ps1" "graceful_close.ps1"
 
   ; Check running process during uninstall
   Call un.CheckRunningProcess
