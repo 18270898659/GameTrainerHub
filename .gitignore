@@ -1,23 +1,49 @@
-# Binaries
+# Binaries & Release Artifacts
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
+*.zip
+bin/
+build/bin/
+
+# Databases & Logs
 *.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
 *.log
+
+# Secrets & Environment
+.env
+.env.*
+*.pem
+*.key
+*.pfx
+*.p12
+credentials.json
+token.json
 
 # Frontend
 node_modules/
 dist/
+frontend/dist/
 .vite/
 frontend/src/**/*.js
 frontend/src/**/*.js.map
 
-# Temporary
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
+
+# Local Runtime / Temporary Data
 temp/
 logs/
 data/
 downloads/
-bin/
-
+driver_result.json
