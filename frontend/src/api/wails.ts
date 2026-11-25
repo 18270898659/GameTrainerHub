@@ -68,6 +68,10 @@ declare global {
           StopTrainer: (localTrainerID: number) => Promise<void>
           SelectTrainerExecutable: () => Promise<string>
           CheckHotkeyConflict: (hotkeyStr: string) => Promise<boolean>
+          ApplyHotkeys: (toggleWindow: string, openDownloads: string, enabled: boolean) => Promise<void>
+          ResetHotkeys: () => Promise<Record<string, string>>
+          SuspendHotkeys: (suspend: boolean) => Promise<void>
+          GetDefaultHotkeys: () => Promise<Record<string, string>>
           CheckForUpdates: () => Promise<UpdateCheckResult>
           DiagnoseEnvironment: () => Promise<DiagnosticReport>
           ExportDiagnostics: () => Promise<string>
@@ -503,6 +507,38 @@ export const api = {
       return window.go!.app!.App!.CheckHotkeyConflict(hotkeyStr)
     }
     return false
+  },
+
+  async applyHotkeys(toggleWindow: string, openDownloads: string, enabled: boolean): Promise<void> {
+    if (isWails()) {
+      return window.go!.app!.App!.ApplyHotkeys(toggleWindow, openDownloads, enabled)
+    }
+  },
+
+  async resetHotkeys(): Promise<Record<string, string>> {
+    if (isWails()) {
+      return window.go!.app!.App!.ResetHotkeys()
+    }
+    return {
+      hotkey_toggle_window: 'Alt + Ctrl + Q',
+      hotkey_open_downloads: 'Alt + Ctrl + J'
+    }
+  },
+
+  async suspendHotkeys(suspend: boolean): Promise<void> {
+    if (isWails()) {
+      return window.go!.app!.App!.SuspendHotkeys(suspend)
+    }
+  },
+
+  async getDefaultHotkeys(): Promise<Record<string, string>> {
+    if (isWails()) {
+      return window.go!.app!.App!.GetDefaultHotkeys()
+    }
+    return {
+      hotkey_toggle_window: 'Alt + Ctrl + Q',
+      hotkey_open_downloads: 'Alt + Ctrl + J'
+    }
   },
 
   async checkForUpdates(): Promise<UpdateCheckResult> {

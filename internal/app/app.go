@@ -207,20 +207,16 @@ func (a *App) Startup(ctx context.Context) {
 		a.updateTrayLabels(a.cfg.Language)
 
 		tray.SetHotkeyHandlers(func() {
-			if a.ctx != nil && isWailsContext(a.ctx) {
-				runtime.WindowShow(a.ctx)
-				runtime.WindowUnminimise(a.ctx)
-			}
+			a.ToggleWindow()
 		}, func() {
-			if a.ctx != nil && isWailsContext(a.ctx) {
-				runtime.WindowShow(a.ctx)
-				runtime.WindowUnminimise(a.ctx)
-				if a.EventEmitter != nil {
-					a.EventEmitter(a.ctx, "navigate:downloads", nil)
-				}
-			}
+			a.OpenDownloadsPage()
 		})
-		_ = tray.UpdateHotkeys(a.cfg.GlobalHotkeysEnabled, a.cfg.HotkeyToggleWindow, a.cfg.HotkeyOpenDownloads)
+		if err := tray.ApplyHotkeys(a.cfg.GlobalHotkeysEnabled, a.cfg.HotkeyToggleWindow, a.cfg.HotkeyOpenDownloads); err != nil {
+			logger.Warn("Failed to register global hotkeys on startup", "err", err)
+			if a.EventEmitter != nil {
+				a.EventEmitter(a.ctx, "hotkey:startup_error", err.Error())
+			}
+		}
 	}
 
 	// 恢复上次异常退出的未完成任务
@@ -1173,6 +1169,94 @@ func (a *App) SelectTrainerExecutable() (string, error) {
 		return "", err
 	}
 	return filePath, nil
+}
+
+// ToggleWindow 全局快捷键呼出/隐藏客户端
+func (a *App) ToggleWindow() {
+	if a.ctx == nil || !isWailsContext(a.ctx) {
+		return
+	}
+	if tray.IsMainWindowActiveAndVisible() {
+		runtime.WindowHide(a.ctx)
+	} else {
+		runtime.WindowShow(a.ctx)
+		runtime.WindowUnminimise(a.ctx)
+		tray.BringMainWindowToForeground()
+	}
+}
+
+// OpenDownloadsPage 全局快捷键直达下载管理页面
+func (a *App) OpenDownloadsPage() {
+	if a.ctx == nil || !isWailsContext(a.ctx) {
+		return
+	}
+	runtime.WindowShow(a.ctx)
+	runtime.WindowUnminimise(a.ctx)
+	tray.BringMainWindowToForeground()
+	if a.EventEmitter != nil {
+		a.EventEmitter(a.ctx, "navigate:downloads", nil)
+	}
+}
+
+// ApplyHotkeys 强制注册并持久化应用全局快捷键
+func (a *App) ApplyHotkeys(toggleWindow, openDownloads string, enabled bool) error {
+	normToggle, err := tray.NormalizeHotkeyString(toggleWindow)
+	if err != nil {
+		return fmt.Errorf("“呼出/隐藏客户端”快捷键格式非法: %w", err)
+	}
+	normDl, err := tray.NormalizeHotkeyString(openDownloads)
+	if err != nil {
+		return fmt.Errorf("“直达下载”快捷键格式非法: %w", err)
+	}
+
+	if normToggle == normDl {
+		return fmt.Errorf("快捷键冲突：“呼出/隐藏客户端”与“直达下载”不能设置为相同的组合键 (%s)", normToggle)
+	}
+
+	// 调用底层原子注册与回滚机制
+	if err := tray.ApplyHotkeys(enabled, normToggle, normDl); err != nil {
+		return err
+	}
+
+	// 注册成功后持久化保存到现有配置
+	return a.cfg.Update(func(c *config.AppConfig) {
+		c.GlobalHotkeysEnabled = enabled
+		c.HotkeyToggleWindow = normToggle
+		c.HotkeyOpenDownloads = normDl
+	})
+}
+
+// ResetHotkeys 恢复默认全局快捷键并立即应用与持久化
+func (a *App) ResetHotkeys() (map[string]string, error) {
+	const defToggle = "Alt + Ctrl + Q"
+	const defDl = "Alt + Ctrl + J"
+
+	if err := tray.ApplyHotkeys(a.cfg.GlobalHotkeysEnabled, defToggle, defDl); err != nil {
+		return nil, err
+	}
+
+	_ = a.cfg.Update(func(c *config.AppConfig) {
+		c.HotkeyToggleWindow = defToggle
+		c.HotkeyOpenDownloads = defDl
+	})
+
+	return map[string]string{
+		"hotkey_toggle_window":  defToggle,
+		"hotkey_open_downloads": defDl,
+	}, nil
+}
+
+// SuspendHotkeys 挂起或恢复全局快捷键拦截（录入状态避免抢占）
+func (a *App) SuspendHotkeys(suspend bool) {
+	tray.SuspendHotkeys(suspend)
+}
+
+// GetDefaultHotkeys 获取系统默认快捷键配置
+func (a *App) GetDefaultHotkeys() map[string]string {
+	return map[string]string{
+		"hotkey_toggle_window":  "Alt + Ctrl + Q",
+		"hotkey_open_downloads": "Alt + Ctrl + J",
+	}
 }
 
 // CheckHotkeyConflict 检测指定快捷键是否冲突

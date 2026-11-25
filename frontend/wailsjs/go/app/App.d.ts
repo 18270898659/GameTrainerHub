@@ -8,6 +8,8 @@ import {launcher} from '../models';
 
 export function AddSearchHistory(arg1:string):Promise<void>;
 
+export function ApplyHotkeys(arg1:string,arg2:string,arg3:boolean):Promise<void>;
+
 export function CancelDownload(arg1:number):Promise<void>;
 
 export function CheckForUpdates():Promise<model.UpdateCheckResult>;
@@ -33,6 +35,8 @@ export function ExportDiagnostics():Promise<string>;
 export function GetConfig():Promise<config.AppConfig>;
 
 export function GetContext():Promise<context.Context>;
+
+export function GetDefaultHotkeys():Promise<Record<string, string>>;
 
 export function GetGameCount():Promise<number>;
 
@@ -74,6 +78,8 @@ export function ListFavorites():Promise<Array<model.Game>>;
 
 export function OpenContainingFolder(arg1:string):Promise<void>;
 
+export function OpenDownloadsPage():Promise<void>;
+
 export function PauseAllDownloads():Promise<void>;
 
 export function PauseDownload(arg1:number):Promise<void>;
@@ -89,6 +95,8 @@ export function RelocateTrainer(arg1:number,arg2:string):Promise<void>;
 export function RemoveSearchHistory(arg1:string):Promise<void>;
 
 export function ResetConfig():Promise<void>;
+
+export function ResetHotkeys():Promise<Record<string, string>>;
 
 export function RestoreWindowState():Promise<void>;
 
@@ -112,9 +120,13 @@ export function StartDownload(arg1:number):Promise<model.DownloadTask>;
 
 export function StopTrainer(arg1:number):Promise<void>;
 
+export function SuspendHotkeys(arg1:boolean):Promise<void>;
+
 export function ToggleFavorite(arg1:number):Promise<boolean>;
 
 export function ToggleFavoriteBySlug(arg1:string,arg2:string,arg3:string,arg4:string):Promise<boolean>;
+
+export function ToggleWindow():Promise<void>;
 
 export function TriggerSync():Promise<model.SyncRecord>;
 

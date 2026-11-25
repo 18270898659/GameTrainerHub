@@ -84,8 +84,8 @@ func DefaultConfig() *AppConfig {
 		NotifyOnDownloadFailed:   true,
 		NotifyOnTrainerUpdate:    true,
 		GlobalHotkeysEnabled:     true,
-		HotkeyToggleWindow:       "Alt+Q",
-		HotkeyOpenDownloads:      "Ctrl+J",
+		HotkeyToggleWindow:       "Alt + Ctrl + Q",
+		HotkeyOpenDownloads:      "Alt + Ctrl + J",
 		AutoBackupConfig:         true,
 		configFilePath:         filepath.Join(baseDir, "config.json"),
 	}
@@ -138,6 +138,14 @@ func LoadConfig(customPath string) (*AppConfig, error) {
 		if _, hasCloseToTray := rawMap["close_to_tray"]; !hasCloseToTray {
 			cfg.CloseToTray = true
 		}
+	}
+
+	// 历史快捷键升级兼容：若仍使用历史旧默认值 Alt+Q 或 Ctrl+J，自动迁移为规范值 Alt + Ctrl + Q / Alt + Ctrl + J
+	if cfg.HotkeyToggleWindow == "Alt+Q" || cfg.HotkeyToggleWindow == "Alt + Q" || cfg.HotkeyToggleWindow == "" {
+		cfg.HotkeyToggleWindow = "Alt + Ctrl + Q"
+	}
+	if cfg.HotkeyOpenDownloads == "Ctrl+J" || cfg.HotkeyOpenDownloads == "Ctrl + J" || cfg.HotkeyOpenDownloads == "" {
+		cfg.HotkeyOpenDownloads = "Alt + Ctrl + J"
 	}
 
 	// 补全内部字段

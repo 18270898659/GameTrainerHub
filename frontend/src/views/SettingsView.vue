@@ -149,7 +149,35 @@
 
     <!-- 全局快捷键模块 -->
     <div class="settings-card">
-      <h3 class="settings-title">{{ t('settings.sectionHotkeys') }}</h3>
+      <div class="card-header-with-actions">
+        <h3 class="settings-title">{{ t('settings.sectionHotkeys') }}</h3>
+        <div v-if="form?.global_hotkeys_enabled" class="hotkey-status-indicator">
+          <el-tag
+            v-if="hotkeyState === 'applied' || (hotkeyState === 'idle' && !hasUnsavedHotkeyChanges)"
+            type="success"
+            size="small"
+            effect="dark"
+          >
+            <span class="status-dot green"></span> {{ t('settings.hotkeyStatusApplied') }}
+          </el-tag>
+          <el-tag
+            v-else-if="hotkeyState === 'captured' || hasUnsavedHotkeyChanges"
+            type="warning"
+            size="small"
+            effect="dark"
+          >
+            <span class="status-dot amber"></span> {{ t('settings.hotkeyStatusCaptured') }}
+          </el-tag>
+          <el-tag
+            v-else-if="hotkeyState === 'error'"
+            type="danger"
+            size="small"
+            effect="dark"
+          >
+            <span class="status-dot red"></span> {{ hotkeyErrorMessage || t('settings.hotkeyConflict') }}
+          </el-tag>
+        </div>
+      </div>
 
       <div v-if="form" class="hotkey-settings-grid">
         <div class="setting-item-row">
@@ -159,7 +187,7 @@
           </div>
           <el-switch
             v-model="form.global_hotkeys_enabled"
-            @change="saveSettingsSilently"
+            @change="applyHotkeysHandler"
           />
         </div>
 
@@ -167,32 +195,59 @@
           <el-divider class="inner-divider" />
           <div class="hotkey-inputs-row">
             <div class="hotkey-field">
-              <label class="field-label">{{ t('settings.hotkeyToggleWindow') }}</label>
-              <el-input
+              <div class="field-header">
+                <label class="field-label">{{ t('settings.hotkeyToggleWindow') }}</label>
+                <span class="field-tooltip">{{ t('settings.hotkeyToggleDesc') }}</span>
+              </div>
+              <HotkeyInput
                 v-model="form.hotkey_toggle_window"
-                placeholder="Alt+Q"
-                size="default"
-                @blur="validateHotkey(form.hotkey_toggle_window || '', 'toggle')"
-              >
-                <template #append>
-                  <span class="hotkey-badge">Global</span>
-                </template>
-              </el-input>
+                placeholder="Alt + Ctrl + Q"
+                @change="onHotkeyCaptured"
+              />
             </div>
 
             <div class="hotkey-field">
-              <label class="field-label">{{ t('settings.hotkeyOpenDownloads') }}</label>
-              <el-input
+              <div class="field-header">
+                <label class="field-label">{{ t('settings.hotkeyOpenDownloads') }}</label>
+                <span class="field-tooltip">{{ t('settings.hotkeyDownloadsDesc') }}</span>
+              </div>
+              <HotkeyInput
                 v-model="form.hotkey_open_downloads"
-                placeholder="Ctrl+J"
-                size="default"
-                @blur="validateHotkey(form.hotkey_open_downloads || '', 'downloads')"
-              >
-                <template #append>
-                  <span class="hotkey-badge">Global</span>
-                </template>
-              </el-input>
+                placeholder="Alt + Ctrl + J"
+                @change="onHotkeyCaptured"
+              />
             </div>
+          </div>
+
+          <!-- 失败原因警告提示 -->
+          <el-alert
+            v-if="hotkeyState === 'error' && hotkeyErrorMessage"
+            type="error"
+            :title="hotkeyErrorMessage"
+            :closable="false"
+            show-icon
+            class="hotkey-error-alert"
+          />
+
+          <!-- 快捷键操作按钮栏 -->
+          <div class="hotkey-actions-bar">
+            <el-button
+              type="primary"
+              :icon="Check"
+              :loading="applyingHotkeys"
+              @click="applyHotkeysHandler"
+            >
+              {{ t('settings.hotkeyApply') }}
+            </el-button>
+            <el-button
+              :icon="RefreshRight"
+              @click="restoreDefaultHotkeysHandler"
+            >
+              {{ t('settings.hotkeyRestoreDefaults') }}
+            </el-button>
+            <span class="hotkeys-usage-tip">
+              * 快捷键注册后在游戏或后台失去焦点时均可全局生效
+            </span>
           </div>
         </template>
       </div>
@@ -435,12 +490,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   QuestionFilled, FolderOpened, FolderAdd, Moon, Sunny,
-  Download, Upload, RefreshLeft, Connection, Document, Share, Refresh
+  Download, Upload, RefreshLeft, Connection, Document, Share, Refresh,
+  Check, RefreshRight
 } from '@element-plus/icons-vue'
+import HotkeyInput from '../components/HotkeyInput.vue'
 import { useAppStore } from '../stores/appStore'
 import { api } from '../api/wails'
 import { t, currentLanguage, setLanguage, type SupportedLanguage } from '../i18n'
@@ -453,6 +510,22 @@ const saving = ref(false)
 const selectingDir = ref(false)
 const selectedLanguage = ref<SupportedLanguage>(currentLanguage.value)
 const selectedTheme = ref<ThemeMode>(currentTheme.value)
+
+// 快捷键编辑与状态管理
+type HotkeyState = 'idle' | 'captured' | 'applied' | 'error'
+const hotkeyState = ref<HotkeyState>('idle')
+const hotkeyErrorMessage = ref('')
+const applyingHotkeys = ref(false)
+const initialToggle = ref('')
+const initialDownloads = ref('')
+
+const hasUnsavedHotkeyChanges = computed(() => {
+  if (!form.value) return false
+  return (
+    form.value.hotkey_toggle_window !== initialToggle.value ||
+    form.value.hotkey_open_downloads !== initialDownloads.value
+  )
+})
 
 // 诊断与更新
 const diagDialogVisible = ref(false)
@@ -469,6 +542,8 @@ onMounted(async () => {
   await store.refreshConfig()
   if (store.config) {
     form.value = { ...store.config }
+    initialToggle.value = store.config.hotkey_toggle_window || 'Alt + Ctrl + Q'
+    initialDownloads.value = store.config.hotkey_open_downloads || 'Alt + Ctrl + J'
     if (store.config.language) {
       selectedLanguage.value = store.config.language as SupportedLanguage
       setLanguage(store.config.language as SupportedLanguage)
@@ -538,18 +613,61 @@ async function onThemeChange(val: any) {
   }
 }
 
-async function validateHotkey(keyStr: string, type: string) {
-  if (!keyStr) return
-  try {
-    const conflict = await api.checkHotkeyConflict(keyStr)
-    if (conflict) {
-      ElMessage.warning(`${keyStr} ${t('settings.hotkeyConflict')}`)
-    } else {
-      ElMessage.success(`${keyStr} ${t('settings.hotkeyNormal')}`)
+function onHotkeyCaptured() {
+  hotkeyState.value = 'captured'
+  hotkeyErrorMessage.value = ''
+}
+
+// 强制注册并持久化应用全局快捷键
+async function applyHotkeysHandler() {
+  if (!form.value) return
+  const toggle = (form.value.hotkey_toggle_window || '').trim()
+  const downloads = (form.value.hotkey_open_downloads || '').trim()
+  const enabled = Boolean(form.value.global_hotkeys_enabled)
+
+  if (enabled) {
+    if (!toggle || !downloads) {
+      hotkeyState.value = 'error'
+      hotkeyErrorMessage.value = '快捷键不能为空，请录入两组快捷键组合'
+      ElMessage.warning(hotkeyErrorMessage.value)
+      return
     }
-  } catch (e) {
-    console.warn('Hotkey conflict check failed', e)
+
+    if (toggle.toLowerCase() === downloads.toLowerCase()) {
+      hotkeyState.value = 'error'
+      hotkeyErrorMessage.value = t('settings.hotkeyStatusConflict')
+      ElMessage.error(hotkeyErrorMessage.value)
+      return
+    }
   }
+
+  applyingHotkeys.value = true
+  try {
+    await api.applyHotkeys(toggle, downloads, enabled)
+    hotkeyState.value = 'applied'
+    hotkeyErrorMessage.value = ''
+    initialToggle.value = toggle
+    initialDownloads.value = downloads
+    ElMessage.success(t('settings.hotkeyStatusSuccess'))
+    await store.refreshConfig()
+  } catch (err: any) {
+    hotkeyState.value = 'error'
+    const msg = err?.message || String(err)
+    hotkeyErrorMessage.value = msg
+    ElMessage.error(msg)
+  } finally {
+    applyingHotkeys.value = false
+  }
+}
+
+// 恢复默认快捷键
+async function restoreDefaultHotkeysHandler() {
+  if (!form.value) return
+  form.value.hotkey_toggle_window = 'Alt + Ctrl + Q'
+  form.value.hotkey_open_downloads = 'Alt + Ctrl + J'
+  hotkeyState.value = 'captured'
+  hotkeyErrorMessage.value = ''
+  ElMessage.info(t('settings.hotkeyRestoreConfirm'))
 }
 
 async function exportConfig() {
@@ -824,6 +942,55 @@ async function saveSettings() {
   grid-template-columns: 1fr 1fr;
   gap: 20px;
   margin-top: 12px;
+}
+.card-header-with-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.card-header-with-actions .settings-title {
+  margin-bottom: 0;
+}
+.field-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.field-tooltip {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.hotkey-actions-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+.hotkeys-usage-tip {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-left: 8px;
+}
+.hotkey-error-alert {
+  margin-top: 14px;
+}
+.status-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+.status-dot.green {
+  background-color: #10b981;
+}
+.status-dot.amber {
+  background-color: #f59e0b;
+}
+.status-dot.red {
+  background-color: #ef4444;
 }
 .hotkey-field {
   display: flex;

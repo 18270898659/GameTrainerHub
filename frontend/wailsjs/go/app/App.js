@@ -6,6 +6,10 @@ export function AddSearchHistory(arg1) {
   return window['go']['app']['App']['AddSearchHistory'](arg1);
 }
 
+export function ApplyHotkeys(arg1, arg2, arg3) {
+  return window['go']['app']['App']['ApplyHotkeys'](arg1, arg2, arg3);
+}
+
 export function CancelDownload(arg1) {
   return window['go']['app']['App']['CancelDownload'](arg1);
 }
@@ -56,6 +60,10 @@ export function GetConfig() {
 
 export function GetContext() {
   return window['go']['app']['App']['GetContext']();
+}
+
+export function GetDefaultHotkeys() {
+  return window['go']['app']['App']['GetDefaultHotkeys']();
 }
 
 export function GetGameCount() {
@@ -138,6 +146,10 @@ export function OpenContainingFolder(arg1) {
   return window['go']['app']['App']['OpenContainingFolder'](arg1);
 }
 
+export function OpenDownloadsPage() {
+  return window['go']['app']['App']['OpenDownloadsPage']();
+}
+
 export function PauseAllDownloads() {
   return window['go']['app']['App']['PauseAllDownloads']();
 }
@@ -168,6 +180,10 @@ export function RemoveSearchHistory(arg1) {
 
 export function ResetConfig() {
   return window['go']['app']['App']['ResetConfig']();
+}
+
+export function ResetHotkeys() {
+  return window['go']['app']['App']['ResetHotkeys']();
 }
 
 export function RestoreWindowState() {
@@ -214,12 +230,20 @@ export function StopTrainer(arg1) {
   return window['go']['app']['App']['StopTrainer'](arg1);
 }
 
+export function SuspendHotkeys(arg1) {
+  return window['go']['app']['App']['SuspendHotkeys'](arg1);
+}
+
 export function ToggleFavorite(arg1) {
   return window['go']['app']['App']['ToggleFavorite'](arg1);
 }
 
 export function ToggleFavoriteBySlug(arg1, arg2, arg3, arg4) {
   return window['go']['app']['App']['ToggleFavoriteBySlug'](arg1, arg2, arg3, arg4);
+}
+
+export function ToggleWindow() {
+  return window['go']['app']['App']['ToggleWindow']();
 }
 
 export function TriggerSync() {

@@ -1090,6 +1090,72 @@ func TestDownloadTasksRetentionAndDeletion(t *testing.T) {
 	}
 }
 
+func TestAppHotkeyMethods(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "gth_hotkey_test_*")
+	if err != nil {
+		t.Fatalf("failed to create temp dir: %v", err)
+	}
+	defer os.RemoveAll(tempDir)
+
+	cfg := &config.AppConfig{
+		BaseDir:                tempDir,
+		DataDir:                filepath.Join(tempDir, "data"),
+		DownloadDir:            filepath.Join(tempDir, "downloads"),
+		LogDir:                 filepath.Join(tempDir, "logs"),
+		Theme:                  "dark",
+		Language:               "zh-CN",
+		GlobalHotkeysEnabled:   true,
+		HotkeyToggleWindow:     "Alt + Ctrl + Q",
+		HotkeyOpenDownloads:    "Alt + Ctrl + J",
+	}
+
+	app, err := NewApp(cfg)
+	if err != nil {
+		t.Fatalf("NewApp failed: %v", err)
+	}
+	defer app.Shutdown(context.Background())
+
+	app.EventEmitter = func(c context.Context, eventName string, data any) {}
+	ctx := context.Background()
+	app.Startup(ctx)
+
+	// 1. 测试 GetDefaultHotkeys
+	defaults := app.GetDefaultHotkeys()
+	if defaults["hotkey_toggle_window"] != "Alt + Ctrl + Q" {
+		t.Errorf("expected default toggle Alt + Ctrl + Q, got %s", defaults["hotkey_toggle_window"])
+	}
+	if defaults["hotkey_open_downloads"] != "Alt + Ctrl + J" {
+		t.Errorf("expected default dl Alt + Ctrl + J, got %s", defaults["hotkey_open_downloads"])
+	}
+
+	// 2. 测试内部快捷键冲突
+	err = app.ApplyHotkeys("Alt + Ctrl + Q", "Alt + Ctrl + Q", true)
+	if err == nil {
+		t.Errorf("expected conflict error when setting identical hotkeys")
+	}
+
+	// 3. 测试快捷键格式错误
+	err = app.ApplyHotkeys("InvalidKey", "Alt + Ctrl + J", true)
+	if err == nil {
+		t.Errorf("expected invalid format error")
+	}
+
+	// 4. 测试恢复默认快捷键
+	res, err := app.ResetHotkeys()
+	if err != nil {
+		t.Logf("ResetHotkeys notice: %v", err)
+	} else {
+		if res["hotkey_toggle_window"] != "Alt + Ctrl + Q" || res["hotkey_open_downloads"] != "Alt + Ctrl + J" {
+			t.Errorf("ResetHotkeys result incorrect: %v", res)
+		}
+	}
+
+	// 5. 挂起与恢复
+	app.SuspendHotkeys(true)
+	app.SuspendHotkeys(false)
+}
+
+
 
 
 
