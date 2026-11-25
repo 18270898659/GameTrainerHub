@@ -39,12 +39,12 @@
 
 ## 4. 项目截图 | Screenshots
 
-> 预留真实运行截图位置（后续可在 `docs/screenshots/` 目录补充实际截图）：
->
-> * `[主界面 / 首页推荐占位图]`
-> * `[智能搜索与详情抽屉占位图]`
-> * `[下载管理与本地库占位图]`
-> * `[全局快捷键与系统设置占位图]`
+<img width="1266" height="844" alt="首页" src="https://github.com/user-attachments/assets/145391f1-b253-4855-b76d-cb550af5231f" />
+<img width="1266" height="844" alt="搜索" src="https://github.com/user-attachments/assets/38cf246d-4064-4856-ab20-dda6fabf6a4d" />
+<img width="1266" height="844" alt="下载管理" src="https://github.com/user-attachments/assets/107a262a-fb6d-4490-9b5b-ad10c2524bbe" />
+<img width="1266" height="844" alt="本地修改器" src="https://github.com/user-attachments/assets/89376c35-27f8-4d66-8dea-0721a000b90c" />
+<img width="1266" height="844" alt="设置" src="https://github.com/user-attachments/assets/e3036727-85ef-4d2f-8713-a344fb564671" />
+
 
 ---
 
