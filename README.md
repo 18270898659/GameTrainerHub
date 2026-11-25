@@ -237,7 +237,7 @@ package.bat
 
 ## 16. 许可证信息 | License
 
-本项目声明按开源协议分发（详见 [build/installer/NOTICE.txt](build/installer/NOTICE.txt)），**具体 SPDX 开源许可证类型（如 MIT / Apache-2.0 / GPL-3.0）待仓库所有者确认并补充根目录 `LICENSE` 文件**。在正式 `LICENSE` 文件补充前，请仅用于学习与个人非商业用途。
+本项目基于 [MIT License](LICENSE) 开源发布。您可以在遵守 MIT 协议条款的前提下自由使用、修改与分发本软件。
 
 ---
 

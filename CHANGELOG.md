@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.0.1] - 2026-11-25
+
+### Added
+- **MIT License**: Added standard [LICENSE](LICENSE) file and updated repository license metadata.
+
+### Fixed
+- **GitHub Actions CI & Release Workflows**: Ordered frontend build (`npm ci && npm run build`) before `go vet ./...` so `//go:embed all:frontend/dist` resolves cleanly on fresh CI runners.
+
+---
+
 ## [1.0.0] - 2026-11-25
 
 ### Added

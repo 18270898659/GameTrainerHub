@@ -28,6 +28,12 @@ jobs:
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
 
+      - name: Install frontend dependencies & typecheck/build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
       - name: Verify Go modules
         run: go mod verify
 
@@ -36,12 +42,6 @@ jobs:
 
       - name: Run Go unit and integration tests
         run: go test -v -count=1 ./internal/...
-
-      - name: Install frontend dependencies & typecheck/build
-        working-directory: frontend
-        run: |
-          npm ci
-          npm run build
 
       - name: Install Wails CLI
         run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.1

@@ -9,7 +9,7 @@ SetCompressor /SOLID lzma
 ; Definitions
 ; ------------------------------------------------------------------------------
 !define PRODUCT_NAME "Game Trainer Hub"
-!define PRODUCT_VERSION "1.0.0"
+!define PRODUCT_VERSION "1.0.1"
 !define PRODUCT_PUBLISHER "GameTrainerHub"
 !define PRODUCT_WEB_SITE "https://github.com/FLiNGTrainer"
 !define PRODUCT_DIR_REGKEY "Software\Microsoft\Windows\CurrentVersion\App Paths\GameTrainerHub.exe"
