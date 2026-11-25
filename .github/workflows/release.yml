@@ -1,0 +1,119 @@
+name: Release Windows x64
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build & Publish Windows Release
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Run Go static analysis & tests
+        run: |
+          go mod verify
+          go vet ./...
+          go test -count=1 ./internal/...
+
+      - name: Build frontend assets
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.17.1
+
+      - name: Build Wails production executable
+        run: |
+          New-Item -ItemType Directory -Force -Path bin | Out-Null
+          wails build -clean -s
+          if (-not (Test-Path "build\bin\GameTrainerHub.exe")) {
+            throw "Expected build\bin\GameTrainerHub.exe not found!"
+          }
+          Copy-Item "build\bin\GameTrainerHub.exe" "bin\GameTrainerHub.exe" -Force
+
+      - name: Create Portable ZIP package
+        shell: pwsh
+        run: |
+          $tempDir = "bin\temp_portable"
+          if (Test-Path $tempDir) { Remove-Item $tempDir -Recurse -Force }
+          New-Item -ItemType Directory -Force -Path $tempDir | Out-Null
+          Copy-Item "bin\GameTrainerHub.exe" "$tempDir\GameTrainerHub.exe" -Force
+          Copy-Item "build\installer\NOTICE.txt" "$tempDir\NOTICE.txt" -Force
+          Copy-Item "build\installer\README.txt" "$tempDir\README.txt" -Force
+          Copy-Item "build\installer\version.json" "$tempDir\version.json" -Force
+          Compress-Archive -Path "$tempDir\*" -DestinationPath "bin\GameTrainerHub-Portable-x64.zip" -Force
+          Remove-Item $tempDir -Recurse -Force
+
+      - name: Ensure NSIS is installed and compile Windows installer
+        shell: pwsh
+        run: |
+          $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
+          if (-not (Test-Path $makensis)) {
+            $makensis = "C:\Program Files\NSIS\makensis.exe"
+          }
+          if (-not (Test-Path $makensis)) {
+            choco install nsis -y
+            $makensis = "C:\Program Files (x86)\NSIS\makensis.exe"
+          }
+          & $makensis /V3 /INPUTCHARSET UTF8 build\installer\installer.nsi
+          if ($LASTEXITCODE -ne 0) {
+            throw "NSIS installer compilation failed with exit code $LASTEXITCODE"
+          }
+          if (-not (Test-Path "bin\GameTrainerHub-Setup-x64.exe")) {
+            throw "Expected bin\GameTrainerHub-Setup-x64.exe not found!"
+          }
+
+      - name: Generate SHA256SUMS.txt
+        shell: pwsh
+        run: |
+          $files = @(
+            "bin\GameTrainerHub-Setup-x64.exe",
+            "bin\GameTrainerHub-Portable-x64.zip",
+            "bin\GameTrainerHub.exe"
+          )
+          $lines = @()
+          foreach ($f in $files) {
+            $h = (Get-FileHash -Algorithm SHA256 $f).Hash.ToLowerInvariant()
+            $name = Split-Path $f -Leaf
+            $lines += "$h  $name"
+          }
+          $lines | Out-File -FilePath "bin\SHA256SUMS.txt" -Encoding ascii
+          Get-Content "bin\SHA256SUMS.txt"
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          name: "GameTrainerHub ${{ github.ref_name }}"
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            bin/GameTrainerHub-Setup-x64.exe
+            bin/GameTrainerHub-Portable-x64.zip
+            bin/SHA256SUMS.txt
+            CHANGELOG.md
